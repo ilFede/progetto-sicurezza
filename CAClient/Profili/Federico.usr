@@ -1,0 +1,15 @@
+<userProfile>
+<!--Profilo utente-->
+<user>
+<commonName>Federico</commonName>
+<organization>MyOrg</organization>
+<mail>MyMail</mail>
+<organizationUnit>MyOrgUnit</organizationUnit>
+<locality>MyLocality</locality>
+<state>MySate</state>
+<country>MyCountry</country>
+</user>
+<!--Certificati-->
+<myCertificates/>
+</userProfile>
+
