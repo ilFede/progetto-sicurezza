@@ -27,7 +27,7 @@ public class ProvaSWT {
 	
 	
 
-	protected Shell shlCaclient;
+	protected Shell shlCAClient;
 	protected Shell shlCaclient2;
 
 	
@@ -52,9 +52,9 @@ public class ProvaSWT {
 	public void open() {
 		Display display = Display.getDefault();
 		createContents();
-		shlCaclient.open();
-		shlCaclient.layout();
-		while (!shlCaclient.isDisposed()) {
+		shlCAClient.open();
+		shlCAClient.layout();
+		while (!shlCAClient.isDisposed()) {
 			if (!display.readAndDispatch()) {
 				display.sleep();
 			}
@@ -65,39 +65,39 @@ public class ProvaSWT {
 	 * Create contents of the window.
 	 */
 	protected void createContents() {
-		shlCaclient = new Shell();
-		shlCaclient.setSize(332, 142);
-		shlCaclient.setText("CAClient");
-		shlCaclient.setLayout(new GridLayout(5, false));
-		new Label(shlCaclient, SWT.NONE);
+		shlCAClient = new Shell();
+		shlCAClient.setSize(332, 142);
+		shlCAClient.setText("CAClient");
+		shlCAClient.setLayout(new GridLayout(5, false));
+		new Label(shlCAClient, SWT.NONE);
 		
-		Label lblScegliUnaOperazione = new Label(shlCaclient, SWT.NONE);
+		Label lblScegliUnaOperazione = new Label(shlCAClient, SWT.NONE);
 		lblScegliUnaOperazione.setText("SCEGLI UNA OPERAZIONE:");
-		new Label(shlCaclient, SWT.NONE);
-		new Label(shlCaclient, SWT.NONE);
-		new Label(shlCaclient, SWT.NONE);
-		new Label(shlCaclient, SWT.NONE);
+		new Label(shlCAClient, SWT.NONE);
+		new Label(shlCAClient, SWT.NONE);
+		new Label(shlCAClient, SWT.NONE);
+		new Label(shlCAClient, SWT.NONE);
 		
-		Label lblCreaUnNuovo = new Label(shlCaclient, SWT.NONE);
+		Label lblCreaUnNuovo = new Label(shlCAClient, SWT.NONE);
 		lblCreaUnNuovo.setText("1- Crea un nuovo profilo");
-		new Label(shlCaclient, SWT.NONE);
-		new Label(shlCaclient, SWT.NONE);
+		new Label(shlCAClient, SWT.NONE);
+		new Label(shlCAClient, SWT.NONE);
 		
-		Button btnCrea = new Button(shlCaclient, SWT.NONE);
+		Button btnCrea = new Button(shlCAClient, SWT.NONE);
 		btnCrea.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
 				creaFile();
 			}
 		});
 		btnCrea.setText("Crea...");
-		new Label(shlCaclient, SWT.NONE);
+		new Label(shlCAClient, SWT.NONE);
 		
-		Label lblApriUnProfilo = new Label(shlCaclient, SWT.NONE);
+		Label lblApriUnProfilo = new Label(shlCAClient, SWT.NONE);
 		lblApriUnProfilo.setText("2- Apri un profilo già esistente");
-		new Label(shlCaclient, SWT.NONE);
-		new Label(shlCaclient, SWT.NONE);
+		new Label(shlCAClient, SWT.NONE);
+		new Label(shlCAClient, SWT.NONE);
 		
-		Button btnApri = new Button(shlCaclient, SWT.NONE);
+		Button btnApri = new Button(shlCAClient, SWT.NONE);
 		btnApri.addSelectionListener(new SelectionAdapter() {
 			public void widgetSelected(SelectionEvent e) {
 				caricaFile();
@@ -107,12 +107,12 @@ public class ProvaSWT {
 	}
 		
 	private void creaFile(){
-		FileDialog dialog = new FileDialog(shlCaclient, SWT.SAVE);
+		FileDialog dialog = new FileDialog(shlCAClient, SWT.SAVE);
 		String result = dialog.open();
 	}
 	
 	private void caricaFile(){
-		FileDialog dialog = new FileDialog(shlCaclient, SWT.OPEN);
+		FileDialog dialog = new FileDialog(shlCAClient, SWT.OPEN);
 		String result = dialog.open();
 	}
 		
