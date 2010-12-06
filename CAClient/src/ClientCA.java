@@ -1,5 +1,13 @@
 import java.io.*;
 import java.net.*;
+import org.bouncycastle.x509.X509V1CertificateGenerator;
+import org.bouncycastle.x509.X509V3CertificateGenerator;
+import java.sql.Date;
+import java.math.BigInteger;
+import java.security.*;
+import javax.security.auth.x500.X500Principal;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
 
 public class ClientCA{
 	static int num;
@@ -33,9 +41,18 @@ public class ClientCA{
 		out.flush();
 	}
 	
-	public void createCert(){
+	public KeyPair keyGenerate(int lenght, String alg) throws NoSuchAlgorithmException{
+		//Generare chiavi con KeyPairGenerator
+		KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(alg);
+        keyPairGenerator.initialize(lenght);
+        KeyPair keyPair = keyPairGenerator.genKeyPair();
+        return keyPair;
+	}
+	
+	public void richiestaCert(){
 		
 	}
+	
 	/**public static void main(String args[]) throws UnknownHostException, IOException{
 		ClientCA client = new ClientCA();
 		client.getConnection("127.0.0.1", 9999);
