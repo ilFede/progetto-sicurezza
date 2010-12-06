@@ -1,7 +1,33 @@
 import java.util.*;
+import java.math.BigInteger;
 import java.net.*;
+import java.security.InvalidKeyException;
+import java.security.KeyPair;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.SignatureException;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.CertificateParsingException;
+import java.security.cert.X509Certificate;
 import java.sql.*;
+import java.sql.Date;
 import java.io.*;
+import java.io.*;
+import java.net.*;
+import org.bouncycastle.asn1.x509.X509Extensions;
+import org.bouncycastle.x509.X509V1CertificateGenerator;
+import org.bouncycastle.x509.X509V3CertificateGenerator;
+import java.sql.Date;
+import java.math.BigInteger;
+import java.security.*;
+import java.security.cert.X509Certificate;
+import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
+
+
+import javax.security.auth.x500.X500Principal;
+
+import org.bouncycastle.x509.X509V3CertificateGenerator;
+import org.bouncycastle.x509.extension.SubjectKeyIdentifierStructure;
 
 public class CertificateAuthorityThread extends Thread {
 	private static int num;
@@ -64,6 +90,7 @@ public class CertificateAuthorityThread extends Thread {
 	}
 	
 	private static String getDate(){
+		
 		GregorianCalendar gc = new GregorianCalendar();
 		String year = ("0" + gc.get(Calendar.YEAR));
 		year = year.substring(year.length() - 4, year.length());
@@ -78,6 +105,27 @@ public class CertificateAuthorityThread extends Thread {
 		String second = ("0" + gc.get(Calendar.SECOND));
 		second = second.substring(second.length() - 2, second.length());
 		return year + "/" + month + "/" + day + " " + hour + ":" + minute + ":" + second + ":00";
+	}
+	
+	public X509Certificate createCert(Date startDate, Date expiryDate, BigInteger serialNumber, 
+			KeyPair keyPair, String signatureAlgorithm, X509Certificate caCert, PrivateKey caKey) throws CertificateEncodingException, InvalidKeyException, IllegalStateException, NoSuchProviderException, NoSuchAlgorithmException, SignatureException, CertificateParsingException{
+		
+		//Modificare in modo che basti passare lo statement del database
+		X509V3CertificateGenerator certGen = new X509V3CertificateGenerator();
+		X500Principal subjectName = new X500Principal("CN=Test V3 Certificate");
+		certGen.setSerialNumber(serialNumber);
+		certGen.setIssuerDN(caCert.getSubjectX500Principal());
+		certGen.setNotBefore(startDate);
+		certGen.setNotAfter(expiryDate);
+		certGen.setSubjectDN(subjectName);
+		certGen.setPublicKey(keyPair.getPublic());
+		certGen.setSignatureAlgorithm(signatureAlgorithm);
+
+		certGen.addExtension(X509Extensions.AuthorityKeyIdentifier, false, new AuthorityKeyIdentifierStructure(caCert));
+		certGen.addExtension(X509Extensions.SubjectKeyIdentifier, false, new SubjectKeyIdentifierStructure(keyPair.getPublic()));
+
+		X509Certificate cert = certGen.generate(caKey, "BC");   // note: private key of CA
+		return cert;
 	}
 	
 	public void run(){
