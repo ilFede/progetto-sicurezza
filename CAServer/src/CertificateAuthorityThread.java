@@ -1,3 +1,5 @@
+//Forse questa può diventare una supeclasse di certificateAuthority
+
 import java.util.*;
 import java.math.BigInteger;
 import java.net.*;
@@ -12,39 +14,50 @@ import java.security.cert.X509Certificate;
 import java.sql.*;
 import java.sql.Date;
 import java.io.*;
-import java.io.*;
-import java.net.*;
 import org.bouncycastle.asn1.x509.X509Extensions;
-import org.bouncycastle.x509.X509V1CertificateGenerator;
 import org.bouncycastle.x509.X509V3CertificateGenerator;
-import java.sql.Date;
-import java.math.BigInteger;
 import java.security.*;
-import java.security.cert.X509Certificate;
 import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
-
-
 import javax.security.auth.x500.X500Principal;
-
-import org.bouncycastle.x509.X509V3CertificateGenerator;
 import org.bouncycastle.x509.extension.SubjectKeyIdentifierStructure;
 
 public class CertificateAuthorityThread extends Thread {
-	private static int num;
 	private int id;
 	private Statement stm;
-	private Socket conn;
+	private Socket clientConnection;
 	private BufferedReader in;
 	private BufferedWriter out;
+	private Properties access;
 	
-	public CertificateAuthorityThread(Socket conn, Statement stm) throws IOException{
-		id = num;
-		num += 1;
-		this.conn = conn;
-		this.stm = stm;
-		in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-		out = new BufferedWriter(new OutputStreamWriter(conn.getOutputStream()));		
+	public CertificateAuthorityThread(Socket clientConnection, String dbClassName, String dbPath, Properties access) throws IOException, SQLException{
+		this.clientConnection = clientConnection;
+		this.access = access;
+		stm = (DriverManager.getConnection(dbClassName + dbPath, access)).createStatement();
+		in = new BufferedReader(new InputStreamReader(clientConnection.getInputStream()));
+		out = new BufferedWriter(new OutputStreamWriter(clientConnection.getOutputStream()));		
 	}
+	
+	//Da controllare, forse è inutile usare un thread anche per questa classe
+	public void run(){
+		String s = "";
+		while (!s.equals("stop")){
+			try {
+				s = recieve();
+				System.out.println("Il thread " + id + " ha ricevuto: " + s);
+			} catch (IOException e) {
+				System.out.println("Error!!!!/n" + e);
+			}
+			System.out.println(s);
+			
+		}
+		try {
+			closeConnection();
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+	}
+	
+	//Metodi pubblici per la comunicazione
 	
 	public String recieve() throws IOException{
 		String s = in.readLine();
@@ -58,11 +71,29 @@ public class CertificateAuthorityThread extends Thread {
 	public void closeConnection() throws IOException{
 		in.close();
 		out.close();
-		conn.close();
+		clientConnection.close();
 	}
 	
-	public void insertCert(String userMail, String from, String to, String publicKey, String privateKey) throws SQLException {
-		stm.executeQuery("INSERT INTO userCertificate (userCertificate.userMail, publicKey, privateKey, userCertificate.from, userCertificate.to, userCertificate.creationDate) VALUES ('" + userMail + "'.'" + publicKey + "'.'"+ privateKey + "'.'"+ from + "'.'" + to + "','" + getDate() + "');");		
+	//Metodi privati per le operazioni
+	
+	private boolean insertUser(String subjectDN) throws SQLException{
+		if (!searchSubject(subjectDN)){
+			stm.executeQuery("INSERT INTO tblUsers VALUES ('" + subjectDN + "');");
+			return true;
+		}else{
+			return false;
+		}	
+	}
+	
+	
+	private boolean searchSerial(String serialNumber) throws SQLException{
+		ResultSet rs = stm.executeQuery("SELECT * FROM tblUsrCert WHERE serialNumber = '" + serialNumber + "';");
+		return rs.first();
+	}
+	
+	private boolean searchSubject(String subjectDN) throws SQLException{
+		ResultSet rs = stm.executeQuery("SELECT * FROM tblUsers WHERE subjectDN = '" + subjectDN + "';");
+		return rs.first();
 	}
 	
 	public void renewalCert(String idCert, String newTo) throws SQLException{
@@ -82,11 +113,6 @@ public class CertificateAuthorityThread extends Thread {
 		ResultSet result = (stm.executeQuery("SELECT userCertificate.state WHERE userCertificate.id = '" + idCert + ",;"));
 		result.first();
 		return result.getString(0);
-	}
-	
-	public void insertUser(String commonName, String organization, String email, String organizationUnit, String locality, String state, String country) throws SQLException{
-		stm.executeQuery("INSERT INTO user (user.commonName, user.organization, user.email, user.organizationUnit, user.locality, user.state, user.country) VALUES ('" + commonName + "','" + organization + "','" + organizationUnit + "','" + locality + "','" + state + "','" + country + "');");
-		
 	}
 	
 	private static String getDate(){
@@ -128,23 +154,6 @@ public class CertificateAuthorityThread extends Thread {
 		return cert;
 	}
 	
-	public void run(){
-		String s = "";
-		while (!s.equals("stop")){
-			try {
-				s = recieve();
-				System.out.println("Il thread " + id + " ha ricevuto: " + s);
-			} catch (IOException e) {
-				System.out.println("Error!!!!/n" + e);
-			}
-			System.out.println(s);
-			
-		}
-		try {
-			closeConnection();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
-	}
+	
 
 }
