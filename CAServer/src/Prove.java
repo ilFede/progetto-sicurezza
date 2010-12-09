@@ -1,11 +1,83 @@
+import java.io.*;
+import java.math.BigInteger;
+import java.security.InvalidKeyException;
+import java.security.KeyFactory;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.SecureRandom;
+import java.security.SignatureException;
+import java.security.cert.CRLException;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateExpiredException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.CertificateNotYetValidException;
+import java.security.cert.CertificateParsingException;
+import java.security.cert.X509Certificate;
+import java.security.interfaces.RSAPrivateKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.RSAPrivateKeySpec;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.Hashtable;
+import java.util.Set;
+import javax.security.auth.x500.X500Principal;
+import javax.swing.text.Document;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x509.X509Extensions;
+import org.bouncycastle.asn1.x509.CRLReason;
+import org.bouncycastle.asn1.x509.CRLNumber;
+import org.bouncycastle.jce.PKCS10CertificationRequest;
+import org.bouncycastle.jce.X509Principal;
+import org.bouncycastle.x509.X509V2CRLGenerator;
+import org.bouncycastle.x509.X509V3CertificateGenerator;
+import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
+import org.bouncycastle.x509.extension.SubjectKeyIdentifierStructure;
+import org.w3c.dom.*;
+//JAXP 1.1
+import javax.xml.parsers.*;
+import javax.xml.transform.*;
+import javax.xml.transform.stream.*;
+import javax.xml.transform.dom.*;
+import org.xml.sax.SAXException;
+import java.security.cert.X509CRL;
+import java.sql.ResultSet;
+import java.util.Vector;
+import javax.swing.DefaultListModel;
+import javax.swing.JList;
+import org.bouncycastle.asn1.DERObject;
+import org.bouncycastle.asn1.DERObjectIdentifier;
+import org.bouncycastle.asn1.DEROctetString;
+import org.bouncycastle.asn1.DERSet;
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
+import org.bouncycastle.asn1.x509.Attribute;
+import org.bouncycastle.asn1.x509.GeneralName;
+import org.bouncycastle.asn1.x509.GeneralNames;
+import org.bouncycastle.asn1.x509.SubjectDirectoryAttributes;
+import org.bouncycastle.asn1.x509.X509Extension;
+import org.bouncycastle.ocsp.OCSPReq;
+import org.bouncycastle.ocsp.OCSPReqGenerator;
+import org.xml.sax.InputSource;
 
+import sunlabs.brazil.util.Base64;
 
 public class Prove {
 	
-	public static void main(String args[]) throws NoSuchAlgorithmException{
+	public static void main(String args[]) throws NoSuchAlgorithmException, TransformerException, ParserConfigurationException, InvalidKeySpecException{
+		esempioChiavi();
+		esempioXML();
+		provaChiavi();
+	}
+	
+	public static void esempioChiavi() throws NoSuchAlgorithmException{
 		//inizializza un generatore di coppie di chiavi usando RSA
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
         System.out.print(".");
@@ -37,7 +109,59 @@ public class Prove {
         String ca = kp.getPrivate().getFormat();
         System.out.println("Format: " + ca);
         System.out.println("Le chiavi sono uguali: " + ca.equals(p));
-
 	}
+	
+	public static void esempioXML() throws TransformerException, ParserConfigurationException{
+		 org.w3c.dom.Document xmldoc = null;
+	        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+	        DocumentBuilder builder = factory.newDocumentBuilder();
+	        DOMImplementation impl = builder.getDOMImplementation();
+	        Element e = null;
+	        Node n = null;
+	        // Document.
+	        xmldoc = impl.createDocument(null, "certSigned", null);
+	        // Root element.
+	        Element root = xmldoc.getDocumentElement();
+
+	        e = xmldoc.createElementNS(null, "serialNumber");
+	        n = xmldoc.createTextNode("ciao");
+	            e.appendChild(n);
+	            root.appendChild(e);
+	        e = xmldoc.createElementNS(null, "notBefore");
+	        n = xmldoc.createTextNode("come");
+	            e.appendChild(n);
+	            root.appendChild(e);
+	        e = xmldoc.createElementNS(null, "notAfter");
+	        n = xmldoc.createTextNode("stai?");
+	            e.appendChild(n);
+	            root.appendChild(e);
+	            
+	        e = xmldoc.createElementNS(null, "afdadsad");
+		    n = xmldoc.createTextNode("Hey!!");
+		        e.appendChild(n);
+	            root.appendChild(e);
+	        // Serialisation through Tranform.
+	        DOMSource domSource = new DOMSource(xmldoc);
+
+	        TransformerFactory tf = TransformerFactory.newInstance();
+	        Transformer trans = tf.newTransformer();
+	        StringWriter sw = new StringWriter();
+	        trans.transform((domSource), new StreamResult(sw));
+	        String theAnswer = sw.toString();
+	        System.out.println(theAnswer);
+	   }
+	
+	   private static void provaChiavi() throws NoSuchAlgorithmException, InvalidKeySpecException{
+		   	//inizializza un generatore di coppie di chiavi usando RSA
+	        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
+	        kpg.initialize(512);
+	        // genera la coppia
+	        KeyPair kp = kpg.generateKeyPair();
+	        String a = CertificateAuthority.convPrivKeyToString(kp.getPrivate()) + "";
+	        System.out.println(Base64.encode(a));
+	        a = Base64.encode(a);
+	        String b = CertificateAuthority.convPrivKeyToString(CertificateAuthority.convStringToPrivKey(new String(Base64.decode(a))));
+	        System.out.println("Riultato: " + a.equals(b));
+	   }
 
 }
