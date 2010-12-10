@@ -24,7 +24,7 @@ public class CertificateAuthority extends DBQuery {
 	private final String REVOKED = "revoked";
 	private final String UNKNOWN = "unknown";
 	
-	//Costruttore, crea connessione e statement per query
+	//Costruttore, crea connessione e statement per query al DB
 	public CertificateAuthority(String dbClassName, String dbPath, int clientConnPort, Properties dbAccess) throws SQLException, ClassNotFoundException, IOException, NoSuchAlgorithmException, InvalidKeySpecException{
 		super(dbClassName, dbPath, dbAccess);
 		this.dbPath = dbPath;
