@@ -20,6 +20,7 @@ import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.RSAPrivateKeySpec;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -37,6 +38,7 @@ import org.bouncycastle.asn1.x509.CRLReason;
 import org.bouncycastle.asn1.x509.CRLNumber;
 import org.bouncycastle.jce.PKCS10CertificationRequest;
 import org.bouncycastle.jce.X509Principal;
+import org.bouncycastle.util.encoders.Base64;
 import org.bouncycastle.x509.X509V2CRLGenerator;
 import org.bouncycastle.x509.X509V3CertificateGenerator;
 import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
@@ -66,8 +68,6 @@ import org.bouncycastle.asn1.x509.X509Extension;
 import org.bouncycastle.ocsp.OCSPReq;
 import org.bouncycastle.ocsp.OCSPReqGenerator;
 import org.xml.sax.InputSource;
-
-import sunlabs.brazil.util.Base64;
 
 public class Prove {
 	
@@ -157,11 +157,29 @@ public class Prove {
 	        kpg.initialize(512);
 	        // genera la coppia
 	        KeyPair kp = kpg.generateKeyPair();
+	        
+	        PrivateKey key1 = kp.getPrivate();
+	        byte[] privateKey1Bytes = key1.getEncoded();
+	        String codifica1 = new String(Base64.encode(privateKey1Bytes));
+	        
+	        byte[] privateKey2Bytes = Base64.decode(codifica1);
+	        
+			PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKey2Bytes);
+			String codifica2 = new String(Base64.encode(Base64.decode(codifica1)));
+			System.out.println("sadsadasd" + codifica1.equals(codifica2));
+			System.out.println(codifica1 + "/n" + codifica2);
+		    KeyFactory kf = KeyFactory.getInstance("RSA");
+		    PrivateKey key2 = kf.generatePrivate(ks); 
+		    String privateKey2String = new String(Base64.encode(privateKey2Bytes));
+	        
+	        //System.out.println(Base64.encode(keyFile));
+	        
 	        String a = CertificateAuthority.convPrivKeyToString(kp.getPrivate()) + "";
 	        System.out.println(Base64.encode(a));
 	        a = Base64.encode(a);
 	        String b = CertificateAuthority.convPrivKeyToString(CertificateAuthority.convStringToPrivKey(new String(Base64.decode(a))));
 	        System.out.println("Riultato: " + a.equals(b));
+	        
 	   }
 
 }

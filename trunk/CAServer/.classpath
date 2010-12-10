@@ -9,6 +9,5 @@
 	<classpathentry exported="true" kind="lib" path="/home/federico/Librerie/Librerie Java/BouncyCastle/bcprov-jdk16-145.jar"/>
 	<classpathentry exported="true" kind="lib" path="/home/federico/Librerie/Librerie Java/BouncyCastle/bctest-jdk16-145.jar"/>
 	<classpathentry exported="true" kind="lib" path="/home/federico/Librerie/Librerie Java/BouncyCastle/bctsp-jdk16-145.jar"/>
-	<classpathentry kind="lib" path="/home/federico/Librerie/Librerie Java/Base64.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
