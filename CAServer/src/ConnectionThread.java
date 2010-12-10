@@ -37,7 +37,7 @@ public class ConnectionThread extends Thread{
 	
 	public void createConnection() throws IOException, SQLException{
 		Socket clientConnection = sSocket.accept();
-		CertificateAuthorityConnThread caThread = new CertificateAuthorityConnThread(clientConnection, dbClassName, dbPath, access);
+		CertificateAuthorityConn caThread = new CertificateAuthorityConn(clientConnection, dbClassName, dbPath, access);
 	}
 
 }

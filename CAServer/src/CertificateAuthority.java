@@ -11,6 +11,8 @@ import java.security.spec.X509EncodedKeySpec;
 import java.sql.*;
 import java.io.*;
 
+import org.bouncycastle.util.encoders.Base64;
+
 public class CertificateAuthority extends DBQuery {
 	
 	private String dbClassName;
@@ -73,33 +75,39 @@ public class CertificateAuthority extends DBQuery {
 		String state = "";
 		String issuerDN;
 		String subjectDN = issuerDN = caDN;
-		insertCACert(issuerDN, notAfter, notBefore, convPrivKeyToString(caPrivateKey), convPubKeyToString(caPublicKey), signatureAlgorithm, subjectDN, state);
+		insertCACert(issuerDN, notAfter, notBefore, convPrivKeyToBase64(caPrivateKey), convPubKeyToBase64(caPublicKey), signatureAlgorithm, subjectDN, state);
 	}
 	
-	//Converte una stringa in una chiave pubblica
-	private static PublicKey convStringToPubKey(String publicKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
+	//Converte una stringa Base64 in una chiave pubblica
+	public static PublicKey convBase64ToPubKey(String publicKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
 		byte[] publicKeyBytes = publicKey.getBytes();
-		X509EncodedKeySpec ks = new X509EncodedKeySpec(publicKeyBytes);
+		byte[] conv = Base64.decode(publicKeyBytes);
+		X509EncodedKeySpec ks = new X509EncodedKeySpec(conv);
         KeyFactory kf = KeyFactory.getInstance("RSA");
         return kf.generatePublic(ks);
 	}
 	
-	//Converte una stringa in una chiave privata, da controllare
-	public static PrivateKey convStringToPrivKey(String privateKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
+	//Converte una stringa Base64 in una chiave privata
+	public static PrivateKey convBase64ToPrivKey(String privateKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
 		byte[] privateKeyBytes = privateKey.getBytes();
-		PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKeyBytes);
+		byte[] conv = Base64.decode(privateKeyBytes);
+		PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(conv);
 	    KeyFactory kf = KeyFactory.getInstance("RSA");
 	    return kf.generatePrivate(ks); 
 	}
 	
-	//converte una chiave privata in una stringa
-	public static String convPrivKeyToString(PrivateKey key){
-		return new String(key.getEncoded());
+	//converte una chiave privata in una stringa Base64
+	public static String convPrivKeyToBase64(PrivateKey key){
+		byte[] tmp = key.getEncoded();
+		byte[] conv = Base64.encode(tmp);
+		return new String(conv);
 	}
 	
-	//converte una chiave pubblica in una stringa
-	private static String convPubKeyToString(PublicKey key){
-		return new String(key.getEncoded());
+	//converte una chiave pubblica in una stringa Base64
+	public static String convPubKeyToBase64(PublicKey key){
+		byte[] tmp = key.getEncoded();
+		byte[] conv = Base64.encode(tmp);
+		return new String(conv);
 	}
 	
 	

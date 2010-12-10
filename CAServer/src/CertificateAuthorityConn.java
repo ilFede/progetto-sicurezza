@@ -47,12 +47,12 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
 
-public class CertificateAuthorityConnThread extends DBQuery{
+public class CertificateAuthorityConn extends DBQuery{
 	private Socket clientConnection;
 	private BufferedReader in;
 	private BufferedWriter out;
 	
-	public CertificateAuthorityConnThread(Socket clientConnection, String dbClassName, String dbPath, Properties dbAccess) throws IOException, SQLException{
+	public CertificateAuthorityConn(Socket clientConnection, String dbClassName, String dbPath, Properties dbAccess) throws IOException, SQLException{
 		super(dbClassName, dbPath, dbAccess);
 		this.clientConnection = clientConnection;
 		in = new BufferedReader(new InputStreamReader(clientConnection.getInputStream()));
@@ -195,8 +195,8 @@ public class CertificateAuthorityConnThread extends DBQuery{
         elem = xmldoc.createElementNS(null, "certSignEncoded");
         String base64certEncoding = new String(Base64.encode(certSigned.getEncoded()));
         n = xmldoc.createTextNode(base64certEncoding);
-            elem.appendChild(n);
-            root.appendChild(elem);
+        elem.appendChild(n);
+        root.appendChild(elem);
         DOMSource domSource = new DOMSource(xmldoc);
         TransformerFactory tf = TransformerFactory.newInstance();
         Transformer trans = tf.newTransformer();
