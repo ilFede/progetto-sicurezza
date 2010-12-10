@@ -157,28 +157,22 @@ public class Prove {
 	        kpg.initialize(512);
 	        // genera la coppia
 	        KeyPair kp = kpg.generateKeyPair();
+	        PrivateKey kpr = kp.getPrivate();
+	        String codifica =  CertificateAuthority.convPrivKeyToBase64(kpr);
+	        System.out.println("Chiave: " + codifica);
+	        PrivateKey kpr2 = CertificateAuthority.convBase64ToPrivKey(codifica);
+	        String codifica2 = CertificateAuthority.convPrivKeyToBase64(kpr2);
+	        System.out.println("Chiave: " + codifica2);
+	        System.out.println("Chiavi uguali:" + codifica.equals(codifica2));
+	        PublicKey kpp = kp.getPublic();
+	        codifica =  CertificateAuthority.convPubKeyToBase64(kpp);
+	        System.out.println("Chiave: " + codifica);
+	        PublicKey kpp2 = CertificateAuthority.convBase64ToPubKey(codifica);
+	        codifica2 = CertificateAuthority.convPubKeyToBase64(kpp2);
+	        System.out.println("Chiave: " + codifica2);
+	        System.out.println("Chiavi uguali:" + codifica.equals(codifica2));
 	        
-	        PrivateKey key1 = kp.getPrivate();
-	        byte[] privateKey1Bytes = key1.getEncoded();
-	        String codifica1 = new String(Base64.encode(privateKey1Bytes));
 	        
-	        byte[] privateKey2Bytes = Base64.decode(codifica1);
-	        
-			PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKey2Bytes);
-			String codifica2 = new String(Base64.encode(Base64.decode(codifica1)));
-			System.out.println("sadsadasd" + codifica1.equals(codifica2));
-			System.out.println(codifica1 + "/n" + codifica2);
-		    KeyFactory kf = KeyFactory.getInstance("RSA");
-		    PrivateKey key2 = kf.generatePrivate(ks); 
-		    String privateKey2String = new String(Base64.encode(privateKey2Bytes));
-	        
-	        //System.out.println(Base64.encode(keyFile));
-	        
-	        String a = CertificateAuthority.convPrivKeyToString(kp.getPrivate()) + "";
-	        System.out.println(Base64.encode(a));
-	        a = Base64.encode(a);
-	        String b = CertificateAuthority.convPrivKeyToString(CertificateAuthority.convStringToPrivKey(new String(Base64.decode(a))));
-	        System.out.println("Riultato: " + a.equals(b));
 	        
 	   }
 
