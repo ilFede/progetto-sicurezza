@@ -140,6 +140,8 @@ public class CertificateAuthorityConnThread extends DBQuery{
 
 		certGen.addExtension(X509Extensions.AuthorityKeyIdentifier, false, new AuthorityKeyIdentifierStructure(caCert));
 		certGen.addExtension(X509Extensions.SubjectKeyIdentifier, false, new SubjectKeyIdentifierStructure(keyPair.getPublic()));
+		
+		
 
 		X509Certificate cert = certGen.generate(caKey, "BC");   // note: private key of CA
 		return cert;

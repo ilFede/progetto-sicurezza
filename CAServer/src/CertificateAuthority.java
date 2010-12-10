@@ -84,7 +84,7 @@ public class CertificateAuthority extends DBQuery {
         return kf.generatePublic(ks);
 	}
 	
-	//Converte una string in una chiave privata, da controllare
+	//Converte una stringa in una chiave privata, da controllare
 	public static PrivateKey convStringToPrivKey(String privateKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
 		byte[] privateKeyBytes = privateKey.getBytes();
 		PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKeyBytes);
