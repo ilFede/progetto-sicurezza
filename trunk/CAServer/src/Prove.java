@@ -72,9 +72,9 @@ import org.xml.sax.InputSource;
 public class Prove {
 	
 	public static void main(String args[]) throws NoSuchAlgorithmException, TransformerException, ParserConfigurationException, InvalidKeySpecException{
-		esempioChiavi();
+		//esempioChiavi();
 		esempioXML();
-		provaChiavi();
+		//provaChiavi();
 	}
 	
 	public static void esempioChiavi() throws NoSuchAlgorithmException{
@@ -139,7 +139,7 @@ public class Prove {
 	        e = xmldoc.createElementNS(null, "afdadsad");
 		    n = xmldoc.createTextNode("Hey!!");
 		        e.appendChild(n);
-	            root.appendChild(e);
+	            e.appendChild(xmldoc.getDocumentElement());
 	        // Serialisation through Tranform.
 	        DOMSource domSource = new DOMSource(xmldoc);
 
@@ -149,7 +149,36 @@ public class Prove {
 	        trans.transform((domSource), new StreamResult(sw));
 	        String theAnswer = sw.toString();
 	        System.out.println(theAnswer);
+	        aggancia(xmldoc);
 	   }
+	
+		private static void aggancia(org.w3c.dom.Document doc) throws ParserConfigurationException, TransformerException{
+			org.w3c.dom.Document xmldoc = null;
+	        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+	        DocumentBuilder builder = factory.newDocumentBuilder();
+	        DOMImplementation impl = builder.getDOMImplementation();
+	        Element e = null;
+	        Node n = null;
+	        // Document.
+	        xmldoc = impl.createDocument(null, "ciao", null);
+	        // Root element.
+	        Element root = xmldoc.getDocumentElement();
+	        e = xmldoc.createElementNS(null, "afdadsad");
+		    n = xmldoc.createTextNode("Hey!!");
+		        e.appendChild(n);
+	            root.appendChild(e);
+	        root.appendChild(doc);    
+	        // Serialisation through Tranform.
+	        DOMSource domSource = new DOMSource(xmldoc);
+
+	        TransformerFactory tf = TransformerFactory.newInstance();
+	        Transformer trans = tf.newTransformer();
+	        StringWriter sw = new StringWriter();
+	        trans.transform((domSource), new StreamResult(sw));
+	        String theAnswer = sw.toString();
+	        System.out.println(theAnswer);
+			
+		}
 	
 	   private static void provaChiavi() throws NoSuchAlgorithmException, InvalidKeySpecException{
 		   	//inizializza un generatore di coppie di chiavi usando RSA
