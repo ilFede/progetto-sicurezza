@@ -1,8 +1,10 @@
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.io.StringReader;
 import java.io.StringWriter;
 import java.math.BigInteger;
 import java.net.Socket;
@@ -15,6 +17,8 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SignatureException;
 import java.security.cert.CertificateEncodingException;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
 import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
@@ -45,6 +49,9 @@ import org.bouncycastle.x509.extension.SubjectKeyIdentifierStructure;
 import org.w3c.dom.DOMImplementation;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
 
 
 public class CertificateAuthorityConn extends DBQuery{
@@ -206,5 +213,39 @@ public class CertificateAuthorityConn extends DBQuery{
         System.out.println(theAnswer);
         return theAnswer;//return the string
 	}
+	
+	
+	//Controllare
+	public X509Certificate XMLToX509v3(String xmlString) throws ParserConfigurationException, IOException, SAXException, CertificateException, NoSuchProviderException {
+        org.w3c.dom.Document d = stringToXMLDocument(xmlString);
+        Element e = d.getDocumentElement();
+        NodeList e1 = e.getChildNodes();
+        Node serialNTag = e1.item(0);
+        Node notBeforeTag = e1.item(1);
+        Node notAfterTag = e1.item(2);
+        Node issuerDNTag = e1.item(3);
+        Node subjectDNTag = e1.item(4);
+        Node signAlgNameTag = e1.item(5);
+        Node signatureTag = e1.item(6);
+        Node publicKeyTag = e1.item(7);
+        Node certEncodedTag = e1.item(8);
+
+        byte[] data = Base64.decode(certEncodedTag.getTextContent());
+        CertificateFactory fact = CertificateFactory.getInstance("X.509", "BC");
+        return (X509Certificate) fact.generateCertificate(new ByteArrayInputStream(data));
+    }
+	
+	//Controllare	
+	public org.w3c.dom.Document stringToXMLDocument(String xmlstring) throws SAXException, IOException, ParserConfigurationException{
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder parser = factory.newDocumentBuilder();
+        StringReader stringStream = new StringReader(xmlstring.trim());
+        InputSource is = new InputSource(stringStream);
+
+        //org.w3c.dom.Document d = parser.parse(new ByteArrayInputStream(xmlstring.getBytes()));
+        org.w3c.dom.Document d = parser.parse(is);
+        return d;
+
+    }
 	
 }
