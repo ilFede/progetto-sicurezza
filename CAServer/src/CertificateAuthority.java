@@ -110,8 +110,6 @@ public class CertificateAuthority extends DBQuery {
 		return new String(conv);
 	}
 	
-	
-	
 	//Restituisce la data attuale nel forato AAAA/M/GG HH:MM:SS
 	private String getDate(){
 		GregorianCalendar gc = new GregorianCalendar();
