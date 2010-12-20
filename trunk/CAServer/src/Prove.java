@@ -73,8 +73,8 @@ public class Prove {
 	
 	public static void main(String args[]) throws NoSuchAlgorithmException, TransformerException, ParserConfigurationException, InvalidKeySpecException{
 		//esempioChiavi();
-		esempioXML();
-		//provaChiavi();
+		//esempioXML();
+		provaChiavi();
 	}
 	
 	public static void esempioChiavi() throws NoSuchAlgorithmException{

@@ -4,7 +4,6 @@ import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.io.StringReader;
 import java.io.StringWriter;
 import java.math.BigInteger;
 import java.net.Socket;
@@ -15,6 +14,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.Signature;
 import java.security.SignatureException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
@@ -34,8 +34,8 @@ import javax.security.auth.x500.X500Principal;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
@@ -47,17 +47,17 @@ import org.bouncycastle.x509.X509V3CertificateGenerator;
 import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
 import org.bouncycastle.x509.extension.SubjectKeyIdentifierStructure;
 import org.w3c.dom.DOMImplementation;
+import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.xml.sax.InputSource;
 import org.xml.sax.SAXException;
 
 
 public class CertificateAuthorityConn extends DBQuery{
-	private Socket clientConnection;
-	private BufferedReader in;
-	private BufferedWriter out;
+	protected Socket clientConnection;
+	protected BufferedReader in;
+	protected BufferedWriter out;
+	protected final String SIGNALG = "DSA";
 	
 	public CertificateAuthorityConn(Socket clientConnection, String dbClassName, String dbPath, Properties dbAccess) throws IOException, SQLException{
 		super(dbClassName, dbPath, dbAccess);
@@ -66,28 +66,68 @@ public class CertificateAuthorityConn extends DBQuery{
 		out = new BufferedWriter(new OutputStreamWriter(clientConnection.getOutputStream()));		
 	}
 	
-	//Metodi pubblici per la comunicazione
+	//Metodi per la comunicazione
 	
-	public String recieve() throws IOException{
+	protected String recieve() throws IOException{
 		String s = in.readLine();
 		return s;
 	}
-	
-	public void send(String s) throws IOException{
+	 
+	protected void send(String s) throws IOException{
 		out.write(s);
 	}
 	
-	public void closeConnection() throws IOException{
+	protected void closeConnection() throws IOException{
 		in.close();
 		out.close();
 		clientConnection.close();
 	}
 	
-	//Metodi privati per le operazioni
-	
-	
-	private static String getDate(){
+	//Ricava l'operazione richiesta
+	protected void esegui(String operation) throws SAXException, IOException, ParserConfigurationException{
+		Document doc = convStringToXML(operation);
 		
+	}
+	//Metodi per le operazioni
+	
+	//Crea un certificato
+	protected X509Certificate createCert(Date startDate, Date expiryDate, BigInteger serialNumber, 
+			KeyPair keyPair, String signatureAlgorithm, X509Certificate caCert, PrivateKey caKey) throws CertificateEncodingException, InvalidKeyException, IllegalStateException, NoSuchProviderException, NoSuchAlgorithmException, SignatureException, CertificateParsingException{
+		//Modificare in modo che basti passare lo statement del database
+		X509V3CertificateGenerator certGen = new X509V3CertificateGenerator();
+		X500Principal subjectName = new X500Principal("CN=Test V3 Certificate");
+		certGen.setSerialNumber(serialNumber);
+		certGen.setIssuerDN(caCert.getSubjectX500Principal());
+		certGen.setNotBefore(startDate);
+		certGen.setNotAfter(expiryDate);
+		certGen.setSubjectDN(subjectName);
+		certGen.setPublicKey(keyPair.getPublic());
+		certGen.setSignatureAlgorithm(signatureAlgorithm);
+		certGen.addExtension(X509Extensions.AuthorityKeyIdentifier, false, new AuthorityKeyIdentifierStructure(caCert));
+		certGen.addExtension(X509Extensions.SubjectKeyIdentifier, false, new SubjectKeyIdentifierStructure(keyPair.getPublic()));
+		X509Certificate cert = certGen.generate(caKey, "BC");   // note: private key of CA
+		return cert;
+	}
+	
+	//Genera la firma base64 di un messaggio
+	protected String createDigest(String data, PrivateKey kpriv) throws NoSuchAlgorithmException, SignatureException, InvalidKeyException{
+		Signature s = Signature.getInstance(SIGNALG);
+		s.initSign(kpriv);
+		s.update(data.getBytes());
+		byte[] signature = s.sign();
+		return new String(Base64.encode(signature));
+	}
+	
+	//Controlla la firma di un messaggio
+	protected boolean checkDigest(String mess, String digest64, PublicKey kpub) throws NoSuchAlgorithmException, InvalidKeyException, SignatureException{
+		Signature s = Signature.getInstance(SIGNALG);
+		s.initVerify(kpub);
+		s.update(mess.getBytes());
+		return s.verify(Base64.decode(digest64));
+	}
+	
+	//Restituisce la data attuale nel forato AAAA/M/GG HH:MM:SS
+	protected static String getDate(){
 		GregorianCalendar gc = new GregorianCalendar();
 		String year = ("0" + gc.get(Calendar.YEAR));
 		year = year.substring(year.length() - 4, year.length());
@@ -104,8 +144,10 @@ public class CertificateAuthorityConn extends DBQuery{
 		return year + "/" + month + "/" + day + " " + hour + ":" + minute + ":" + second + ":00";
 	}
 
+	//Metodi per le conversioni
+
 	//Converte una stringa in una chiave pubblica
-	private static PublicKey convStringToPubKey(String publicKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
+	protected static PublicKey convStringToPubKey(String publicKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
 		byte[] publicKeyBytes = publicKey.getBytes();
 		X509EncodedKeySpec ks = new X509EncodedKeySpec(publicKeyBytes);
         KeyFactory kf = KeyFactory.getInstance("RSA");
@@ -113,49 +155,48 @@ public class CertificateAuthorityConn extends DBQuery{
 	}
 	
 	//Converte una string in una chiave privata
-	private static PrivateKey convStringToPrivKey(String privateKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
+	protected static PrivateKey convStringToPrivKey(String privateKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
 		byte[] privateKeyBytes = privateKey.getBytes();
 		PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKeyBytes);
 	    KeyFactory kf = KeyFactory.getInstance("RSA");
 	    return kf.generatePrivate(ks); 
 	}
 	
+	//Converte una stringa in un Document XML
+	protected Document convStringToXML(String s) throws SAXException, IOException, ParserConfigurationException{
+		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+	    DocumentBuilder parser = factory.newDocumentBuilder();
+	    Document d = parser.parse(new ByteArrayInputStream(s.getBytes()));
+	    return d;
+	}
+	
+	//Converte un Document XML in una stringa
+	protected String convXMLToString (Document doc) throws TransformerException{
+        TransformerFactory transfac = TransformerFactory.newInstance();
+        Transformer trans = transfac.newTransformer();
+        trans.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+        trans.setOutputProperty(OutputKeys.INDENT, "yes");
+        //create string from xml tree
+        StringWriter sw = new StringWriter();
+        StreamResult result = new StreamResult(sw);
+        DOMSource source = new DOMSource(doc);
+        trans.transform(source, result);
+        String xmlString = sw.toString();
+        return xmlString;
+	}
+	
 	//converte una chiave privata in una stringa
-	private static String convPrivKeyToString(PrivateKey key){
+	protected static String convPrivKeyToString(PrivateKey key){
 		return new String(key.getEncoded());
 	}
 	
 	//converte una chiave pubblica in una stringa
-	private static String convPubKeyToString(PublicKey key){
+	protected static String convPubKeyToString(PublicKey key){
 		return new String(key.getEncoded());
 	}
 	
-	//Crea un certificato
-	public X509Certificate createCert(Date startDate, Date expiryDate, BigInteger serialNumber, 
-			KeyPair keyPair, String signatureAlgorithm, X509Certificate caCert, PrivateKey caKey) throws CertificateEncodingException, InvalidKeyException, IllegalStateException, NoSuchProviderException, NoSuchAlgorithmException, SignatureException, CertificateParsingException{
-		
-		//Modificare in modo che basti passare lo statement del database
-		X509V3CertificateGenerator certGen = new X509V3CertificateGenerator();
-		X500Principal subjectName = new X500Principal("CN=Test V3 Certificate");
-		certGen.setSerialNumber(serialNumber);
-		certGen.setIssuerDN(caCert.getSubjectX500Principal());
-		certGen.setNotBefore(startDate);
-		certGen.setNotAfter(expiryDate);
-		certGen.setSubjectDN(subjectName);
-		certGen.setPublicKey(keyPair.getPublic());
-		certGen.setSignatureAlgorithm(signatureAlgorithm);
-
-		certGen.addExtension(X509Extensions.AuthorityKeyIdentifier, false, new AuthorityKeyIdentifierStructure(caCert));
-		certGen.addExtension(X509Extensions.SubjectKeyIdentifier, false, new SubjectKeyIdentifierStructure(keyPair.getPublic()));
-		
-		
-
-		X509Certificate cert = certGen.generate(caKey, "BC");   // note: private key of CA
-		return cert;
-	}
-	
 	//Converte un certificato dal formato X509V3 a XML
-	private String x509v3ToXML (X509Certificate certSigned) throws CertificateEncodingException, ParserConfigurationException, TransformerException{
+	protected String convX509ToXML (X509Certificate certSigned) throws CertificateEncodingException, ParserConfigurationException, TransformerException{
 		org.w3c.dom.Document xmldoc = null;
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
         DocumentBuilder builder = factory.newDocumentBuilder();
@@ -215,8 +256,22 @@ public class CertificateAuthorityConn extends DBQuery{
 	}
 	
 	
-	//Controllare
-	public X509Certificate XMLToX509v3(String xmlString) throws ParserConfigurationException, IOException, SAXException, CertificateException, NoSuchProviderException {
+	//Converte una certificato in una stringa base 64
+	protected String convX509ToBase64(X509Certificate cert) throws CertificateEncodingException{
+        String strCert = new String(cert.getEncoded());
+        byte[] byteBase64 = Base64.encode(strCert.getBytes());
+        return new String(byteBase64);
+	}
+	
+	//Converte una stringa base64 iu un certificato
+	protected X509Certificate convBase64ToX509(String base64Cert) throws CertificateException, NoSuchProviderException{
+		byte[] byteCert = Base64.decode(base64Cert.getBytes());
+        CertificateFactory fact = CertificateFactory.getInstance("X.509","BC");
+        X509Certificate cert = (X509Certificate)fact.generateCertificate(new ByteArrayInputStream(byteCert));
+        return cert;
+	}
+	
+	/**public X509Certificate convXMLToX509v3(String xmlString) throws ParserConfigurationException, IOException, SAXException, CertificateException, NoSuchProviderException {
         org.w3c.dom.Document d = stringToXMLDocument(xmlString);
         Element e = d.getDocumentElement();
         NodeList e1 = e.getChildNodes();
@@ -246,6 +301,6 @@ public class CertificateAuthorityConn extends DBQuery{
         org.w3c.dom.Document d = parser.parse(is);
         return d;
 
-    }
+    }*/
 	
 }
