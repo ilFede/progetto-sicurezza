@@ -74,6 +74,21 @@ public class DBQuery {
 		return rs.first();
 	}
 	
+	//Restituisce la lista degli utenti della CA
+	protected ResultSet getCAUser() throws SQLException{
+		return stm.executeQuery("SELECT subjecDN from tblUsers;" );
+	}
+	
+	//Restituisce tutti i certificati validi di un utente
+	protected ResultSet getUserValidCert(String user) throws SQLException{
+		return stm.executeQuery("SELECT cert, state, notBefore, notAfter, serialNumber, subjectDN FROM tblUsrCert WHERE state = 'good' AND issuerDN = '" + user + "';" );
+	}
+	
+	//Restituisce tutti i certificati di un utente
+	protected ResultSet getUserCert(String user) throws SQLException{
+		return stm.executeQuery("SELECT cert, state, notBefore, notAfter, serialNumber, subjectDN FROM tblUsrCert WHERE issuerDN = '" + user + "';" );
+	}
+	
 	//Restituisce la data attuale nel forato AAAA/M/GG HH:MM:SS
 	private static String getDate(){
 		GregorianCalendar gc = new GregorianCalendar();
@@ -113,6 +128,11 @@ public class DBQuery {
 		ps.setString(9, state);
 		ps.executeUpdate();	
 		incSerial();
+	}
+	
+	//Restituisce lo stato di un certificato
+	protected ResultSet getUsrCert(String serial) throws SQLException{
+		return stm.executeQuery("SELECT cert, state, notBefore, notAfter, serialNumeber, subjectDN WHERE seril = '" + serial +"';");	
 	}
 	
 	//Inserisce un nuovo certificato tra quelli degli utenti
