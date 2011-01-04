@@ -128,14 +128,14 @@ public class CertificateAuthority extends DBQuery {
 	    return kf.generatePrivate(ks); 
 	}
 	
-	//converte una chiave privata in una stringa Base64
+	//Converte una chiave privata in una stringa Base64
 	public static String convPrivKeyToBase64(PrivateKey key){
 		byte[] tmp = key.getEncoded();
 		byte[] conv = Base64.encode(tmp);
 		return new String(conv);
 	}
 	
-	//converte una chiave pubblica in una stringa Base64
+	//Converte una chiave pubblica in una stringa Base64
 	public static String convPubKeyToBase64(PublicKey key){
 		byte[] tmp = key.getEncoded();
 		byte[] conv = Base64.encode(tmp);
@@ -151,7 +151,7 @@ public class CertificateAuthority extends DBQuery {
 		int hrs = gc.get(Calendar.HOUR);
 		int min = gc.get(Calendar.MINUTE);
 		int sec = gc.get(Calendar.SECOND);
-		return new Date(year, month, day, hrs, min, sec);
+		return new Date(year, month, day);
 	}
 	
 	//Converte unsa Stringa in formato gg/mm/aaaa in util.Date
@@ -161,6 +161,17 @@ public class CertificateAuthority extends DBQuery {
 		int month = Integer.parseInt(token.nextToken());
 		int year = Integer.parseInt(token.nextToken());
 		return new Date (year, month, day);
+	}
+	
+	//Converte un Date in formato gg/mm/aaaa
+	protected String getStringDate(Date date){
+		String year = ("0" + date.getYear());
+		year = year.substring(year.length() - 4, year.length());
+		String month = ("0" + date.getMonth());
+		month = month.substring(month.length() - 2, month.length());
+		String day = ("0" + date.getDay());
+		day = day.substring(day.length() - 2, day.length());
+		return day + "/" + month + "/" + year;
 	}
 	/**
 	//Restituisce la data attuale nel forato AAAA/M/GG HH:MM:SS

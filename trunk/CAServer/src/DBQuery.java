@@ -7,6 +7,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.Properties;
 
@@ -87,14 +88,15 @@ public class DBQuery {
 	
 	//Restituisce tutti i certificati validi di un utente
 	protected ResultSet getUserValidCert(String user) throws SQLException{
-		return stm.executeQuery("SELECT cert, state, notBefore, notAfter, serialNumber, subjectDN FROM tblUsrCert WHERE state = 'good' AND issuerDN = '" + user + "';" );
+		return stm.executeQuery("SELECT cert, state, notAfter, notBefore, serialNumber, subjectDN FROM tblUsrCert WHERE state = 'good' AND issuerDN = '" + user + "';" );
 	}
 	
 	//Restituisce tutti i certificati di un utente
 	protected ResultSet getUserCert(String user) throws SQLException{
-		return stm.executeQuery("SELECT cert, state, notBefore, notAfter, serialNumber, subjectDN FROM tblUsrCert WHERE issuerDN = '" + user + "';" );
+		return stm.executeQuery("SELECT cert, state, notAfter, notBefore, serialNumber, subjectDN FROM tblUsrCert WHERE issuerDN = '" + user + "';" );
 	}
 	
+	/**
 	//Restituisce la data attuale nel forato AAAA/M/GG HH:MM:SS
 	private static String getDate(){
 		GregorianCalendar gc = new GregorianCalendar();
@@ -111,16 +113,16 @@ public class DBQuery {
 		String second = ("0" + gc.get(Calendar.SECOND));
 		second = second.substring(second.length() - 2, second.length());
 		return year + "/" + month + "/" + day + " " + hour + ":" + minute + ":" + second + ":00";
-	}
+	}*/
 	
-	//Restituisce i certificati della CA validi
+	//Restituisce i certificati della CA
 	protected ResultSet getCAKeyFromDB() throws SQLException, NoSuchAlgorithmException, InvalidKeySpecException{
-		return stm.executeQuery("SELECT privateKey, publicKey FROM tblCACert WHERE state = '" + GOOD +"';");	
+		return stm.executeQuery("SELECT privateKey, publicKey, cert FROM tblCACert");	
 	}
 	
 	//Inserisce un nuovo record nei certifiati della CA
-	protected void insertCACert(String serial, String cert, String privKey, String pubKey) throws SQLException{
-		stm.executeUpdate("INSERT INTO tblCACert (serialNumber, certificate) VALUES + '" + serial + "', '" + cert + ", '" + privKey + "', '" + pubKey + "';");
+	protected void insertCACert(String serial, String privKey, String pubKey, String cert) throws SQLException{
+		stm.executeUpdate("INSERT INTO tblCACert (serialNumber, privateKey, publicKey, cert) VALUES + '" + serial + "', '" + privKey + ", '" + pubKey + "', '" + cert + "';");
 	}
 	
 	/**
@@ -144,7 +146,7 @@ public class DBQuery {
 	
 	//Restituisce un certificato
 	protected ResultSet getUsrCert(String serial) throws SQLException{
-		return stm.executeQuery("SELECT cert, state, notBefore, notAfter, serialNumeber, subjectDN WHERE seril = '" + serial +"';");	
+		return stm.executeQuery("SELECT cert, state, notAfter, notBefore, serialNumber, subjectDN WHERE serial = '" + serial +"';");	
 	}
 	
 	//Restituisce il certificato della CA
@@ -153,18 +155,15 @@ public class DBQuery {
 	}
 	
 	//Inserisce un nuovo certificato tra quelli degli utenti
-	protected void insertUsrCert(String issuerDN, String notAfter, String notBefore, String publicKey, String signatureAlgorithm, String subjectDN, String state) throws SQLException{
-		String serialNumber = getSerial() + "";
-		PreparedStatement ps = conn.prepareStatement( "INSERT INTO tblUsrCert (issuerDN, notAfter, notBefore, publicKey, serialNumber, signatureAlgorithm, subjectDN, state)" +
-				                                    "VALUES ?, ?, ?, ?, ?, ?, ?, ?;");
-		ps.setString(1, issuerDN);
-		ps.setString(2, notAfter);
-		ps.setString(3, notBefore);
-		ps.setString(4, publicKey);
+	protected void insertUsrCert(String cert, int state, String notAfter, String notBefore, String serialNumber, String subjectDN) throws SQLException{
+		PreparedStatement ps = conn.prepareStatement( "INSERT INTO tblUsrCert (cert, state, notAfter, notBefore, serialNumber, subjectDN)" +
+				                                    "VALUES ?, ?, ?, ?, ?, ?;");
+		ps.setString(1, cert);
+		ps.setInt(2, state);
+		ps.setString(3, notAfter);
+		ps.setString(4, notBefore);
 		ps.setString(5, serialNumber);
-		ps.setString(6, signatureAlgorithm);
-		ps.setString(7, subjectDN);
-		ps.setString(8, state);
+		ps.setString(6, subjectDN);
 		ps.executeUpdate();	
 		incSerial();
 	}
@@ -176,7 +175,7 @@ public class DBQuery {
 		result.first();
 		String oldNotBefore = result.getString(0);
 		stm.executeQuery("UPDATE userCertificate SET notBefore = '" + newNotBefore + " WHERE serialNumber = " + serial + "';");
-		stm.executeQuery("INSERT INTO  tblRinnovi (data, serialNumber, oldNotBefore, newNotBefore) VALUES ('" + getDate() + "','"+ serial + "','" + oldNotBefore + "','" + newNotBefore + "';");
+		stm.executeQuery("INSERT INTO  tblRinnovi (data, serialNumber, oldNotBefore, newNotBefore) VALUES ('" + getStringDate() + "','"+ serial + "','" + oldNotBefore + "','" + newNotBefore + "';");
 	}
 	
 	//Restituisce la lista dei certificati revocati
@@ -197,20 +196,63 @@ public class DBQuery {
 		return result.getString(0);
 	}
 	
+	/**
 	//Inserisce un nuovo utente, da ricontrollare per uniformarlo al DB
 	protected void insertUser(String commonName, String organization, String email, String organizationUnit, String locality, String state, String country) throws SQLException{
 		stm.executeQuery("INSERT INTO user (user.commonName, user.organization, user.email, user.organizationUnit, user.locality, user.state, user.country) VALUES ('" + commonName + "','" + organization + "','" + organizationUnit + "','" + locality + "','" + state + "','" + country + "');");
 		
 	}
+	*/
 	
-	//Inserisce un nuovo utente del DB
-	private boolean insertUser(String subjectDN) throws SQLException{
+	//Inserisce un nuovo utente nel DB
+	protected boolean insertUser(String subjectDN) throws SQLException{
 		if (!userAlreadyExist(subjectDN)){
 			stm.executeUpdate("INSERT INTO tblUsers VALUES ('" + subjectDN + "');");
 			return true;
 		}else{
 			return false;
 		}	
+	}
+	
+	//Restituisce la data attuale nel formato Date
+	protected static Date getDate(){
+		GregorianCalendar gc = new GregorianCalendar();
+		int year = gc.get(Calendar.YEAR);
+		int month = gc.get(Calendar.MONTH);
+		int day = gc.get(Calendar.DAY_OF_MONTH);
+		int hrs = gc.get(Calendar.HOUR);
+		int min = gc.get(Calendar.MINUTE);
+		int sec = gc.get(Calendar.SECOND);
+		return new Date(year, month, day, hrs, min, sec);
+	}
+	
+	//Restituisce la data attuale nel formato gg/mm/aaaa
+	protected static String getStringDate(){
+		GregorianCalendar gc = new GregorianCalendar();
+		String year = ("0" + gc.get(Calendar.YEAR));
+		year = year.substring(year.length() - 4, year.length());
+		String month = ("0" + gc.get(Calendar.MONTH));
+		month = month.substring(month.length() - 2, month.length());
+		String day = ("0" + gc.get(Calendar.DAY_OF_MONTH));
+		day = day.substring(day.length() - 2, day.length());
+		String hour = ("0" + gc.get(Calendar.HOUR));
+		hour = hour.substring(hour.length() - 2, hour.length());
+		String minute = ("0" + gc.get(Calendar.MINUTE));
+		minute = minute.substring(minute.length() - 2, minute.length());
+		String second = ("0" + gc.get(Calendar.SECOND));
+		second = second.substring(second.length() - 2, second.length());
+		return year + "/" + month + "/" + day;
+	}
+	
+	//Converte un Date in formato gg/mm/aaaa
+	protected String getStringDate(Date date){
+		String year = ("0" + date.getYear());
+		year = year.substring(year.length() - 4, year.length());
+		String month = ("0" + date.getMonth());
+		month = month.substring(month.length() - 2, month.length());
+		String day = ("0" + date.getDay());
+		day = day.substring(day.length() - 2, day.length());
+		return day + "/" + month + "/" + year;
 	}
 	
 	
