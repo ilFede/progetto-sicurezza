@@ -21,7 +21,7 @@ public class DBQuery {
 	private int lastSerial; //primo seriale non usato, viene salvato in una cella del DB
 	private final String GOOD = "good";
 	private final String REVOKED = "revoked";
-	private final String UNKNOWN = "unknown";
+	private final String EXPIRED = "expired";
 	
 	public DBQuery(String dbClassName, String dbPath, Properties dbAccess) throws SQLException {
 		this.dbClassName = dbClassName;
@@ -60,6 +60,12 @@ public class DBQuery {
 	protected void incSerial() throws SQLException{
 		getSerial();
 		lastSerial += 1;
+	}
+	
+	protected int getFreeSerial() throws SQLException{
+		int serial = getSerial() + 1;
+		incSerial();
+		return serial;
 	}
 	
 	//Controlla se il seriale è già usato nel DB
@@ -113,6 +119,12 @@ public class DBQuery {
 	}
 	
 	//Inserisce un nuovo record nei certifiati della CA
+	protected void insertCACert(String serial, String cert, String privKey, String pubKey) throws SQLException{
+		stm.executeUpdate("INSERT INTO tblCACert (serialNumber, certificate) VALUES + '" + serial + "', '" + cert + ", '" + privKey + "', '" + pubKey + "';");
+	}
+	
+	/**
+	//Inserisce un nuovo record nei certifiati della CA
 	protected void insertCACert(String issuerDN, String notAfter, String notBefore, String privateKey, String publicKey, String signatureAlgorithm, String subjectDN, String state) throws SQLException{
 		String serialNumber = getSerial() + "";
 		PreparedStatement ps=conn.prepareStatement( "INSERT INTO tblCACert (issuerDN, notAfter, notBefore, privateKey, publicKey, serialNumber, signatureAlgorithm, subjectDN, state)" +
@@ -128,11 +140,16 @@ public class DBQuery {
 		ps.setString(9, state);
 		ps.executeUpdate();	
 		incSerial();
-	}
+	}*/
 	
-	//Restituisce lo stato di un certificato
+	//Restituisce un certificato
 	protected ResultSet getUsrCert(String serial) throws SQLException{
 		return stm.executeQuery("SELECT cert, state, notBefore, notAfter, serialNumeber, subjectDN WHERE seril = '" + serial +"';");	
+	}
+	
+	//Restituisce il certificato della CA
+	protected ResultSet getCACert(String serial) throws SQLException{
+		return stm.executeQuery("SELECT cert FROM tblCACert;");	
 	}
 	
 	//Inserisce un nuovo certificato tra quelli degli utenti
@@ -162,9 +179,15 @@ public class DBQuery {
 		stm.executeQuery("INSERT INTO  tblRinnovi (data, serialNumber, oldNotBefore, newNotBefore) VALUES ('" + getDate() + "','"+ serial + "','" + oldNotBefore + "','" + newNotBefore + "';");
 	}
 	
+	//Restituisce la lista dei certificati revocati
+	protected ResultSet getRevokedCert() throws SQLException{
+		return stm.executeQuery("SELECT serialNumber FROM tblUsrCert WHERE state = '" + REVOKED + "';");
+	}
+	
+	
 	//Setta lo stato di un certificato
-	protected void setStateCert(String serial, String state) throws SQLException{
-		stm.executeUpdate("UPDATE tblUsrCert SET state = '"+ state +"' WHERE serialNumber = " + serial + "';");
+	protected void setStateCert(String serial, String state, int reason) throws SQLException{
+		stm.executeUpdate("UPDATE tblUsrCert SET state = '"+ state +"' AND reason = '" + reason + "' WHERE serialNumber = " + serial + "';");
 	}
 	
 	//Restituisce lo stato di un certificato
