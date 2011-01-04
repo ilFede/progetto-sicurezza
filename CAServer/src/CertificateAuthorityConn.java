@@ -13,10 +13,10 @@ import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
 import java.security.cert.CertificateFactory;
+import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-//import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Calendar;
@@ -36,9 +36,9 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import org.bouncycastle.asn1.x509.CRLReason;
 import org.bouncycastle.asn1.x509.X509Extensions;
 import org.bouncycastle.util.encoders.Base64;
-import org.bouncycastle.x509.X509V1CertificateGenerator;
 import org.bouncycastle.x509.X509V2CRLGenerator;
 import org.bouncycastle.x509.X509V3CertificateGenerator;
 import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
@@ -61,6 +61,7 @@ public class CertificateAuthorityConn extends DBQuery{
 	private final String REVOKED = "revoked";
 	private final String EXPIRED = "expired";
 	private final String CANAME = "FedeCA";
+	private final String CRLSIGNALG = "MD2withRSA";
 	
 	public CertificateAuthorityConn(Socket clientConnection, String dbClassName, String dbPath, Properties dbAccess, X509V2CRLGenerator crlGen) throws SQLException{
 		super(dbClassName, dbPath, dbAccess);
@@ -127,10 +128,13 @@ public class CertificateAuthorityConn extends DBQuery{
 			createNewCertificate(message);
 		}else if (opName.equals("revokeCert")){
 			String cert = operation.getChildNodes().item(0).getNodeValue();
-			String reason = operation.getChildNodes().item(1).getNodeValue();
+			//String reason = operation.getChildNodes().item(1).getNodeValue();
 			revokedCert(message, cert, 0);
 		}else if (opName.equals("getCrl")){
 			sendCRL();
+		}else if (opName.equals("insertNewUser")){
+			String usr = operation.getChildNodes().item(0).getNodeValue();
+			insertNewUser(usr);
 		}
 	}
 		
@@ -246,17 +250,17 @@ public class CertificateAuthorityConn extends DBQuery{
 	//Invia il certificato appena creato sotto richiesta dell'utente
 	protected void createNewCertificateSS(String message){
 		try{
-			Document doc = convStringToXML(message);
-			Node certificateData = (doc.getElementsByTagName("createNewCertificateSS")).item(0);
-			Date notAfter = convStringToDate(doc.getElementsByTagName("notAfter").item(0).getNodeValue());
-			Date notBefore = convStringToDate(doc.getElementsByTagName("notBefore").item(0).getNodeValue());
-			String subjectDN = doc.getElementsByTagName("subjectDN").item(0).getNodeValue();
-			String publicKey = doc.getElementsByTagName("publicKey").item(0).getNodeValue();
-			String signatureAlg = doc.getElementsByTagName("signatureAlg").item(0).getNodeValue();
-			String issuerName = CANAME;
+			Document doc1 = convStringToXML(message);
+			Date notAfter = convStringToDate(doc1.getElementsByTagName("notAfter").item(0).getNodeValue());
+			Date notBefore = convStringToDate(doc1.getElementsByTagName("notBefore").item(0).getNodeValue());
+			String subjectDN = doc1.getElementsByTagName("subjectDN").item(0).getNodeValue();
+			String publicKey = doc1.getElementsByTagName("publicKey").item(0).getNodeValue();
+			String signatureAlg = doc1.getElementsByTagName("signatureAlg").item(0).getNodeValue();
+			String organizationUnit = doc1.getElementsByTagName("organizationUnit").item(0).getNodeValue();
+			int state = 0;
 			int serial = getFreeSerial();
 			
-			X509V1CertificateGenerator certGen = new X509V1CertificateGenerator();
+			X509V3CertificateGenerator certGen = new X509V3CertificateGenerator();
 			X500Principal dnName = new X500Principal("CN=Test CA Certificate");
 
 			certGen.setSerialNumber(new BigInteger(serial + ""));
@@ -266,17 +270,22 @@ public class CertificateAuthorityConn extends DBQuery{
 			certGen.setSubjectDN(dnName);                       // note: same as issuer
 			certGen.setPublicKey(convStringToPubKey(publicKey));
 			certGen.setSignatureAlgorithm(signatureAlg);
+			certGen.addExtension("organizzaziotnUnit", false, organizationUnit.getBytes());
+			
 			X509Certificate cert = certGen.generate(getCaPrivKey(), "BC");
-			insertUsrCert(); //Controllare con DB
+		    String certString = convX509ToBase64(cert);
+
+			insertUsrCert(certString, state, getStringDate(notAfter), getStringDate(notBefore), serial + "", subjectDN);
+			
 			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
             DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
-            Document doc = docBuilder.newDocument();
-            Element root = doc.createElement("createNewCertificateSSResp");
-            Element certEl = doc.createElement("serial");
-            certEl.appendChild(doc.createTextNode(serial + ""));
+            Document doc2 = docBuilder.newDocument();
+            Element root = doc2.createElement("createNewCertificateSSResp");
+            Element certEl = doc2.createElement("serial");
+            certEl.appendChild(doc2.createTextNode(serial + ""));
             root.appendChild(certEl);
-            Element stateEl = doc.createElement("cert");
-            stateEl.appendChild(doc.createTextNode(convX509ToBase64(cert)));
+            Element stateEl = doc2.createElement("cert");
+            stateEl.appendChild(doc2.createTextNode(convX509ToBase64(cert)));
             root.appendChild(stateEl);
             send(root);
 		}catch (Exception e){
@@ -287,37 +296,43 @@ public class CertificateAuthorityConn extends DBQuery{
 	//Invia il certificato appena creato sotto richiesta dell'utente
 	protected void createNewCertificate(String message){
 		try{
-			Document doc = convStringToXML(message);
-			Node certificateData = (doc.getElementsByTagName("createNewCertificateSS")).item(0);
-			Date notAfter = convStringToDate(doc.getElementsByTagName("notAfter").item(0).getNodeValue());
-			Date notBefore = convStringToDate(doc.getElementsByTagName("notBefore").item(0).getNodeValue());
-			String subjectDN = doc.getElementsByTagName("subjectDN").item(0).getNodeValue();
-			String publicKey = doc.getElementsByTagName("publicKey").item(0).getNodeValue();
-			String signatureAlg = doc.getElementsByTagName("signatureAlg").item(0).getNodeValue();
-			String issuerName = CANAME;
+			Document doc1 = convStringToXML(message);
+			Date notAfter = convStringToDate(doc1.getElementsByTagName("notAfter").item(0).getNodeValue());
+			Date notBefore = convStringToDate(doc1.getElementsByTagName("notBefore").item(0).getNodeValue());
+			String subjectDN = doc1.getElementsByTagName("subjectDN").item(0).getNodeValue();
+			String publicKey = doc1.getElementsByTagName("publicKey").item(0).getNodeValue();
+			String signatureAlg = doc1.getElementsByTagName("signatureAlg").item(0).getNodeValue();
+			String organizationUnit = doc1.getElementsByTagName("organizationUnit").item(0).getNodeValue();
+			int state = 0;
 			int serial = getFreeSerial();
 			
-			X509V1CertificateGenerator certGen = new X509V1CertificateGenerator();
+			X509V3CertificateGenerator certGen = new X509V3CertificateGenerator();
 			X500Principal dnName = new X500Principal("CN=Test CA Certificate");
 
 			certGen.setSerialNumber(new BigInteger(serial + ""));
-			certGen.setIssuerDN(dnName);
+			certGen.setIssuerDN(getCACert().getSubjectX500Principal());
 			certGen.setNotBefore(notAfter);
 			certGen.setNotAfter(notBefore);
 			certGen.setSubjectDN(dnName);                       // note: same as issuer
 			certGen.setPublicKey(convStringToPubKey(publicKey));
 			certGen.setSignatureAlgorithm(signatureAlg);
+			certGen.addExtension("organizzaziotnUnit", false, organizationUnit.getBytes());
+
+			
 			X509Certificate cert = certGen.generate(getCaPrivKey(), "BC");
-			insertUsrCert(); //Controllare con DB
+		    String certString = convX509ToBase64(cert);
+			
+			insertUsrCert(certString, state, getStringDate(notAfter), getStringDate(notBefore), serial + "", subjectDN);
+			
 			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
             DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
-            Document doc = docBuilder.newDocument();
-            Element root = doc.createElement("createNewCertificateSSResp");
-            Element certEl = doc.createElement("serial");
-            certEl.appendChild(doc.createTextNode(serial + ""));
+            Document doc2 = docBuilder.newDocument();
+            Element root = doc2.createElement("createNewCertificateSSResp");
+            Element certEl = doc2.createElement("serial");
+            certEl.appendChild(doc2.createTextNode(serial + ""));
             root.appendChild(certEl);
-            Element stateEl = doc.createElement("cert");
-            stateEl.appendChild(doc.createTextNode(convX509ToBase64(cert)));
+            Element stateEl = doc2.createElement("cert");
+            stateEl.appendChild(doc2.createTextNode(convX509ToBase64(cert)));
             root.appendChild(stateEl);
             send(root);
 		}catch (Exception e){
@@ -340,6 +355,13 @@ public class CertificateAuthorityConn extends DBQuery{
 				Element response = doc.createElement("result");
 				response.appendChild(doc.createTextNode("OK"));
 				root.appendChild(response);
+				
+				crlGen.setIssuerDN(getCACert().getSubjectX500Principal());
+				crlGen.setThisUpdate(getDate());
+				crlGen.setNextUpdate(getDate());
+				crlGen.setSignatureAlgorithm(CRLSIGNALG);
+				crlGen.addCRLEntry(new BigInteger(cert), getDate(), CRLReason.privilegeWithdrawn);
+
 				send(root);
 			}else{
 				operationError("");
@@ -350,17 +372,45 @@ public class CertificateAuthorityConn extends DBQuery{
 	}
 	
 	protected void sendCRL(){
-		
+		try{
+			X509CRL crl = crlGen.generateX509CRL(getCaPrivKey(), "BC");
+			String crlString = convCrlToBase64(crl);
+			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+			DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+			Document doc = docBuilder.newDocument();
+			//create the root element and add it to the document
+			Element root = doc.createElement("message");
+			root.setAttribute("operation", "sendCRLResp");
+			Element response = doc.createElement("crl");
+			response.appendChild(doc.createTextNode(crlString));
+		}catch(Exception e){
+			System.out.println(e.getMessage());
+		}
 	}
-	
-	
 	
 	//Metodo che invia il messaggio di errore
 	protected void operationError(String error){
 		
 	}
 	
+	protected void insertNewUser(String user){
+		try{
+			insertUser(user);
+			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+			DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+			Document doc = docBuilder.newDocument();
+			//create the root element and add it to the document
+			Element root = doc.createElement("message");
+			root.setAttribute("operation", "insertUserResp");
+			Element response = doc.createElement("result");
+			response.appendChild(doc.createTextNode("OK"));
+		}catch(Exception e){
+			System.out.println(e.getMessage());
+		}
+	}
+	
 	//Metodi per le operazioni
+
 	
 	//Crea un certificato
 	protected X509Certificate createCert(Date startDate, Date expiryDate, BigInteger serialNumber, KeyPair keyPair, String signatureAlgorithm, X509Certificate caCert, PrivateKey caKey){
@@ -397,14 +447,7 @@ public class CertificateAuthorityConn extends DBQuery{
 		return new Date(year, month, day, hrs, min, sec);
 	}
 	
-	//Converte unsa Stringa in formato gg/mm/aaaa in util.Date
-	protected Date convStringToDate(String s){
-		StringTokenizer token = new StringTokenizer(s, "/");
-		int day = Integer.parseInt(token.nextToken());
-		int month = Integer.parseInt(token.nextToken());
-		int year = Integer.parseInt(token.nextToken());
-		return new Date (year, month, day);
-	}
+	
 	
 	/**
 	//Restituisce la data attuale nel formato Date
@@ -426,80 +469,50 @@ public class CertificateAuthorityConn extends DBQuery{
 	}
 	 
 	 */
+	
+	//Restituisce la chiave privata della CA
+	protected PrivateKey getCaPrivKey(){
+		try{
+			ResultSet rs = getCAKeyFromDB();
+			rs.first();
+			String base64Key = rs.getString(1);
+			PrivateKey key = convBase64ToPrivKey(base64Key);
+			return key;
+		}catch (Exception e){
+			System.out.println(e.getMessage());
+			return null;
+		}
+	}
+	
+	//Restituisce la chiave pubblica della CA
+	protected PublicKey getCaPubKey(){
+		try{
+			ResultSet rs = getCAKeyFromDB();
+			rs.first();
+			String base64Key = rs.getString(2);
+			PublicKey key = convBase64ToPubKey(base64Key);
+			return key;
+		}catch (Exception e){
+			System.out.println(e.getMessage());
+			return null;
+		}
+	}
+	
+	//Restituisce il certificato della CA
+	protected X509Certificate getCACert(){
+		try{
+			ResultSet rs = getCAKeyFromDB();
+			rs.first();
+			String cert = rs.getString(3);
+			return convBase64ToX509(cert);
+		}catch (Exception e){
+			System.out.println(e.getMessage());
+			return null;
+		}
+	}
+	
 
-	//Metodi per le conversioni delle chiavi
-
-	//Converte una stringa in una chiave pubblica
-	protected static PublicKey convStringToPubKey(String publicKey){
-		try{
-			byte[] publicKeyBytes = publicKey.getBytes();
-			X509EncodedKeySpec ks = new X509EncodedKeySpec(publicKeyBytes);
-			KeyFactory kf = KeyFactory.getInstance("RSA");
-			return kf.generatePublic(ks);
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
-	}
 	
-	//Converte una stringa in una chiave privata
-	protected static PrivateKey convStringToPrivKey(String privateKey){
-		try{
-			byte[] privateKeyBytes = privateKey.getBytes();
-			PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKeyBytes);
-			KeyFactory kf = KeyFactory.getInstance("RSA");
-			return kf.generatePrivate(ks);
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
-	}
-	
-	//Converte una stringa BASE64 in una chiave pubblica
-	protected static PublicKey convBase64ToPubKey(String publicKey){
-		try{
-			byte[] publicKeyBytes =  Base64.decode(publicKey);
-			X509EncodedKeySpec ks = new X509EncodedKeySpec(publicKeyBytes);
-			KeyFactory kf = KeyFactory.getInstance("RSA");
-			return kf.generatePublic(ks);
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
-	}
-	
-	//Converte una stringa BASE64 in una chiave privata
-	protected static PrivateKey convBase64ToPrivKey(String privateKey){
-		try{
-			byte[] privateKeyBytes = Base64.decode(privateKey);
-			PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKeyBytes);
-			KeyFactory kf = KeyFactory.getInstance("RSA");
-			return kf.generatePrivate(ks);
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
-	}
-	
-	//converte una chiave privata in una stringa
-	protected static String convPrivKeyToString(PrivateKey key){
-		return new String(Base64.encode(key.getEncoded()));
-	}
-	
-	//converte una chiave pubblica in una stringa
-	protected static String convPubKeyToString(PublicKey key){
-		return new String(key.getEncoded());
-	}
-	
-	//converte una chiave pubblica in una stringa BASE64
-	protected static String convPubKeyToBase64(PublicKey key){
-		return new String(Base64.encode(key.getEncoded()));
-	}
-	
-	//converte una chiave privata in una stringa BASE64
-	protected static String convPrivKeyToBase64(PrivateKey key){
-		return new String(key.getEncoded());
-	}
 	
 	//Metodi per i messaggi XML
 	
@@ -601,6 +614,100 @@ public class CertificateAuthorityConn extends DBQuery{
 			System.out.println(e.getMessage());
 			return null;
 		}
+	}
+	
+	//Metodi per le conversioni varie
+	
+	//Converte unsa Stringa in formato gg/mm/aaaa in util.Date
+	protected Date convStringToDate(String s){
+		StringTokenizer token = new StringTokenizer(s, "/");
+		int day = Integer.parseInt(token.nextToken());
+		int month = Integer.parseInt(token.nextToken());
+		int year = Integer.parseInt(token.nextToken());
+		return new Date (year, month, day);
+	}
+	
+	//Converte un Date in formato gg/mm/aaaa
+	protected String getStringDate(Date date){
+		String year = ("0" + date.getYear());
+		year = year.substring(year.length() - 4, year.length());
+		String month = ("0" + date.getMonth());
+		month = month.substring(month.length() - 2, month.length());
+		String day = ("0" + date.getDay());
+		day = day.substring(day.length() - 2, day.length());
+		return day + "/" + month + "/" + year;
+	}
+	
+	//Converte una stringa in una chiave pubblica
+	protected static PublicKey convStringToPubKey(String publicKey){
+		try{
+			byte[] publicKeyBytes = publicKey.getBytes();
+			X509EncodedKeySpec ks = new X509EncodedKeySpec(publicKeyBytes);
+			KeyFactory kf = KeyFactory.getInstance("RSA");
+			return kf.generatePublic(ks);
+		}catch (Exception e){
+			System.out.println(e.getMessage());
+			return null;
+		}
+	}
+	
+	//Converte una stringa in una chiave privata
+	protected static PrivateKey convStringToPrivKey(String privateKey){
+		try{
+			byte[] privateKeyBytes = privateKey.getBytes();
+			PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKeyBytes);
+			KeyFactory kf = KeyFactory.getInstance("RSA");
+			return kf.generatePrivate(ks);
+		}catch (Exception e){
+			System.out.println(e.getMessage());
+			return null;
+		}
+	}
+	
+	//Converte una stringa BASE64 in una chiave pubblica
+	protected static PublicKey convBase64ToPubKey(String publicKey){
+		try{
+			byte[] publicKeyBytes =  Base64.decode(publicKey);
+			X509EncodedKeySpec ks = new X509EncodedKeySpec(publicKeyBytes);
+			KeyFactory kf = KeyFactory.getInstance("RSA");
+			return kf.generatePublic(ks);
+		}catch (Exception e){
+			System.out.println(e.getMessage());
+			return null;
+		}
+	}
+	
+	//Converte una stringa BASE64 in una chiave privata
+	protected static PrivateKey convBase64ToPrivKey(String privateKey){
+		try{
+			byte[] privateKeyBytes = Base64.decode(privateKey);
+			PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKeyBytes);
+			KeyFactory kf = KeyFactory.getInstance("RSA");
+			return kf.generatePrivate(ks);
+		}catch (Exception e){
+			System.out.println(e.getMessage());
+			return null;
+		}
+	}
+	
+	//converte una chiave privata in una stringa
+	protected static String convPrivKeyToString(PrivateKey key){
+		return new String(Base64.encode(key.getEncoded()));
+	}
+	
+	//converte una chiave pubblica in una stringa
+	protected static String convPubKeyToString(PublicKey key){
+		return new String(key.getEncoded());
+	}
+	
+	//converte una chiave pubblica in una stringa BASE64
+	protected static String convPubKeyToBase64(PublicKey key){
+		return new String(Base64.encode(key.getEncoded()));
+	}
+	
+	//converte una chiave privata in una stringa BASE64
+	protected static String convPrivKeyToBase64(PrivateKey key){
+		return new String(key.getEncoded());
 	}
 
 	//Converte una stringa in un Document XML
@@ -719,33 +826,19 @@ public class CertificateAuthorityConn extends DBQuery{
 		}
 	}
 	
-	//Restituisce la chiave privata della CA
-	protected PrivateKey getCaPrivKey(){
+	//Converte un X509CRL in Base64
+	protected String convCrlToBase64(X509CRL crl){
 		try{
-			ResultSet rs = getCAKeyFromDB();
-			rs.first();
-			String base64Key = rs.getString(1);
-			PrivateKey key = convBase64ToPrivKey(base64Key);
-			return key;
+			byte[] crlByte = crl.getEncoded();
+			byte[] clrBase64 = Base64.encode(crlByte);
+			return new String(clrBase64);
 		}catch (Exception e){
 			System.out.println(e.getMessage());
 			return null;
 		}
 	}
 	
-	//Restituisce la chiave pubblica della CA
-	protected PublicKey getCaPubKey(){
-		try{
-			ResultSet rs = getCAKeyFromDB();
-			rs.first();
-			String base64Key = rs.getString(1);
-			PublicKey key = convBase64ToPubKey(base64Key);
-			return key;
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
-	}
+	
 	
 	/**public X509Certificate convXMLToX509v3(String xmlString) throws ParserConfigurationException, IOException, SAXException, CertificateException, NoSuchProviderException {
         org.w3c.dom.Document d = stringToXMLDocument(xmlString);
