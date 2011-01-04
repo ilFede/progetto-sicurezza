@@ -1,37 +1,29 @@
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.io.PrintStream;
 import java.io.StringWriter;
 import java.math.BigInteger;
 import java.net.Socket;
-import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.Signature;
-import java.security.SignatureException;
-import java.security.cert.CertificateEncodingException;
-import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
-import java.security.cert.CertificateParsingException;
 import java.security.cert.X509Certificate;
-import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-import java.sql.Date;
+//import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.Properties;
+import java.util.StringTokenizer;
 
 import javax.security.auth.x500.X500Principal;
 import javax.xml.parsers.DocumentBuilder;
@@ -39,7 +31,6 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.transform.OutputKeys;
 import javax.xml.transform.Transformer;
-import javax.xml.transform.TransformerConfigurationException;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
@@ -47,6 +38,8 @@ import javax.xml.transform.stream.StreamResult;
 
 import org.bouncycastle.asn1.x509.X509Extensions;
 import org.bouncycastle.util.encoders.Base64;
+import org.bouncycastle.x509.X509V1CertificateGenerator;
+import org.bouncycastle.x509.X509V2CRLGenerator;
 import org.bouncycastle.x509.X509V3CertificateGenerator;
 import org.bouncycastle.x509.extension.AuthorityKeyIdentifierStructure;
 import org.bouncycastle.x509.extension.SubjectKeyIdentifierStructure;
@@ -62,11 +55,17 @@ public class CertificateAuthorityConn extends DBQuery{
 	protected Socket clientConnection;
 	protected BufferedReader in;
 	protected BufferedWriter out;
+	protected X509V2CRLGenerator crlGen;
 	protected final String SIGNALG = "DSA";
+	private final String GOOD = "good";
+	private final String REVOKED = "revoked";
+	private final String EXPIRED = "expired";
+	private final String CANAME = "FedeCA";
 	
-	public CertificateAuthorityConn(Socket clientConnection, String dbClassName, String dbPath, Properties dbAccess) throws SQLException{
+	public CertificateAuthorityConn(Socket clientConnection, String dbClassName, String dbPath, Properties dbAccess, X509V2CRLGenerator crlGen) throws SQLException{
 		super(dbClassName, dbPath, dbAccess);
 		this.clientConnection = clientConnection;
+		this.crlGen = crlGen;
 		try{
 			in = new BufferedReader(new InputStreamReader(clientConnection.getInputStream()));
 			out = new BufferedWriter(new OutputStreamWriter(clientConnection.getOutputStream()));
@@ -115,21 +114,22 @@ public class CertificateAuthorityConn extends DBQuery{
 		Node operation = (doc.getElementsByTagName("message").item(0)).getChildNodes().item(0);
 		String opName = operation.getNodeName();
 		if (opName.equals("getUsrList")){
-			sendUsrList();
+			getUsrList(message);
 		}else if (operation.equals("getCertUsrList")){
 			String usr = operation.getChildNodes().item(0).getNodeValue();
-			sendCertUsrList(usr);
-		}else if (opName.equals("ocsp")){
+			getCertUsrList(message, usr);
+		}else if (opName.equals("getOcsp")){
 			String cert = operation.getChildNodes().item(0).getNodeValue();
-			sendOCSP(cert);
+			getOcsp(message, cert);
+		}else if (opName.equals("createNewCertificateSS")){
+			createNewCertificateSS(message);
 		}else if (opName.equals("createNewCertificate")){
-			String request = operation.getChildNodes().item(0).getNodeValue();
-			sendCreateCert(request);
-		}else if (opName.equals("setCertState")){
+			createNewCertificate(message);
+		}else if (opName.equals("revokeCert")){
 			String cert = operation.getChildNodes().item(0).getNodeValue();
-			String newState = operation.getChildNodes().item(1).getNodeValue();
-			sendSetCertState(cert, newState);
-		}else if (opName.equals("crl")){
+			String reason = operation.getChildNodes().item(1).getNodeValue();
+			revokedCert(message, cert, 0);
+		}else if (opName.equals("getCrl")){
 			sendCRL();
 		}
 	}
@@ -137,22 +137,27 @@ public class CertificateAuthorityConn extends DBQuery{
 	//Operazioni
 	
 	//Invia la lista di utenti della CA
-	protected void sendUsrList(){
+	protected void getUsrList(String message){
 		try{
-			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
-	        DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
-	        Document doc = docBuilder.newDocument();
-	        //create the root element and add it to the document
-	        Element root = doc.createElement("message");
-	        root.setAttribute("operation", "usrList");
-			ResultSet rs = getCAUser();
-			while (rs.first()){
-				String name = rs.getString(1);
-				Element usr = doc.createElement("user");
-	            usr.appendChild(doc.createTextNode(name));
-	            root.appendChild(usr);
+			boolean b = checkDigest(convStringToXML(message));
+			if (b == true){
+				DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+		        DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+		        Document doc = docBuilder.newDocument();
+		        //create the root element and add it to the document
+		        Element root = doc.createElement("message");
+		        root.setAttribute("operation", "usrListResp");
+				ResultSet rs = getCAUser();
+				while (rs.first()){
+					String name = rs.getString(1);
+					Element usr = doc.createElement("user");
+		            usr.appendChild(doc.createTextNode(name));
+		            root.appendChild(usr);
+				}
+				send(root);
+			}else{
+				operationError("");
 			}
-			send(root);
 		}catch (Exception e){
 			System.out.println(e.getMessage());
 		}
@@ -160,24 +165,29 @@ public class CertificateAuthorityConn extends DBQuery{
 	}
 	
 	//Invia la lista dei certificati di un utente
-	protected void sendCertUsrList(String user){
+	protected void getCertUsrList(String message, String user){
 		try{
-			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
-	        DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
-	        Document doc = docBuilder.newDocument();
-	        //create the root element and add it to the document
-	        Element root = doc.createElement("message");
-	        root.setAttribute("operation", "certUsrList");
-			ResultSet rs = getUserValidCert(user);
-			while (rs.first()){
-				String serial = rs.getString(1);
-				String cert = rs.getString(2);
-				Element usr = doc.createElement("certUserList");
-				usr.setAttribute("serial", serial);
-	            usr.appendChild(doc.createTextNode(cert));
-	            root.appendChild(usr);
+			boolean b = checkDigest(convStringToXML(message));
+			if (b == true){
+				DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+		        DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+		        Document doc = docBuilder.newDocument();
+		        //create the root element and add it to the document
+		        Element root = doc.createElement("message");
+		        root.setAttribute("operation", "getCertUsrListResp");
+				ResultSet rs = getUserValidCert(user);
+				while (rs.first()){
+					String serial = rs.getString(1);
+					String cert = rs.getString(2);
+					Element usr = doc.createElement("certUserList");
+					usr.setAttribute("serial", serial);
+		            usr.appendChild(doc.createTextNode(cert));
+		            root.appendChild(usr);
+				}
+				send(root);
+			}else{
+				operationError("");
 			}
-			send(root);
 		}catch (Exception e){
 			System.out.println(e.getMessage());
 		}
@@ -185,57 +195,155 @@ public class CertificateAuthorityConn extends DBQuery{
 	}
 	
 	//Invia i dettagli di un certificato da usare come OCSP
-	protected void sendOCSP(String serialCert){
+	protected void getOcsp(String message, String serialCert){
 		try{
-			ResultSet rs = getUsrCert(serialCert);
-			rs.first();
-			String cert = rs.getString(1);
-			String state = rs.getString(2);
-			String notBefore = rs.getString(3);
-			String notAfter = rs.getString(4);
-			String serialNumber = rs.getString(5);
-			String subjectDN = rs.getString(6);
-			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
-            DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
-            Document doc = docBuilder.newDocument();
-            //create the root element and add it to the document
-            Element root = doc.createElement("message");
-            root.setAttribute("operation", "getOCSPResp");
-            doc.appendChild(root);
-            //create child element and append it
-            Element certEl = doc.createElement("cert");
-            certEl.appendChild(doc.createTextNode(cert));
-            root.appendChild(certEl);
-            Element stateEl = doc.createElement("state");
-            stateEl.appendChild(doc.createTextNode(state));
-            root.appendChild(stateEl);
-            Element notBeforeEl = doc.createElement("notBefore");
-            notBeforeEl.appendChild(doc.createTextNode(notBefore));
-            root.appendChild(notBeforeEl);
-            Element notAfterEl = doc.createElement("notAfter");
-            notAfterEl.appendChild(doc.createTextNode(notAfter));
-            root.appendChild(notAfterEl);
-            Element serialEl = doc.createElement("serialNumber");
-            serialEl.appendChild(doc.createTextNode(serialNumber));
-            root.appendChild(serialEl);
-            Element subjectDNEl = doc.createElement("subjectDN");
-            subjectDNEl.appendChild(doc.createTextNode(subjectDN));
-            root.appendChild(subjectDNEl);
-           send(root);
+			boolean b = checkDigest(convStringToXML(message));
+			if (b == true){
+				ResultSet rs = getUsrCert(serialCert);
+				rs.first();
+				String cert = rs.getString(1);
+				String state = rs.getString(2);
+				String notBefore = rs.getString(3);
+				String notAfter = rs.getString(4);
+				String serialNumber = rs.getString(5);
+				String subjectDN = rs.getString(6);
+				DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+	            DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+	            Document doc = docBuilder.newDocument();
+	            //create the root element and add it to the document
+	            Element root = doc.createElement("message");
+	            root.setAttribute("operation", "getOcspResp");
+	            doc.appendChild(root);
+	            //create child element and append it
+	            Element certEl = doc.createElement("cert");
+	            certEl.appendChild(doc.createTextNode(cert));
+	            root.appendChild(certEl);
+	            Element stateEl = doc.createElement("state");
+	            stateEl.appendChild(doc.createTextNode(state));
+	            root.appendChild(stateEl);
+	            Element notBeforeEl = doc.createElement("notBefore");
+	            notBeforeEl.appendChild(doc.createTextNode(notBefore));
+	            root.appendChild(notBeforeEl);
+	            Element notAfterEl = doc.createElement("notAfter");
+	            notAfterEl.appendChild(doc.createTextNode(notAfter));
+	            root.appendChild(notAfterEl);
+	            Element serialEl = doc.createElement("serialNumber");
+	            serialEl.appendChild(doc.createTextNode(serialNumber));
+	            root.appendChild(serialEl);
+	            Element subjectDNEl = doc.createElement("subjectDN");
+	            subjectDNEl.appendChild(doc.createTextNode(subjectDN));
+	            root.appendChild(subjectDNEl);
+	            send(root);
+			}else{
+				operationError("");
+			}
 		}catch (Exception e){
 			System.out.println(e.getMessage());
 		}
 		
 	}
 	
-	protected void sendSetCertState(String cert, String newState){
+	//Invia il certificato appena creato sotto richiesta dell'utente
+	protected void createNewCertificateSS(String message){
 		try{
+			Document doc = convStringToXML(message);
+			Node certificateData = (doc.getElementsByTagName("createNewCertificateSS")).item(0);
+			Date notAfter = convStringToDate(doc.getElementsByTagName("notAfter").item(0).getNodeValue());
+			Date notBefore = convStringToDate(doc.getElementsByTagName("notBefore").item(0).getNodeValue());
+			String subjectDN = doc.getElementsByTagName("subjectDN").item(0).getNodeValue();
+			String publicKey = doc.getElementsByTagName("publicKey").item(0).getNodeValue();
+			String signatureAlg = doc.getElementsByTagName("signatureAlg").item(0).getNodeValue();
+			String issuerName = CANAME;
+			int serial = getFreeSerial();
+			
+			X509V1CertificateGenerator certGen = new X509V1CertificateGenerator();
+			X500Principal dnName = new X500Principal("CN=Test CA Certificate");
+
+			certGen.setSerialNumber(new BigInteger(serial + ""));
+			certGen.setIssuerDN(dnName);
+			certGen.setNotBefore(notAfter);
+			certGen.setNotAfter(notBefore);
+			certGen.setSubjectDN(dnName);                       // note: same as issuer
+			certGen.setPublicKey(convStringToPubKey(publicKey));
+			certGen.setSignatureAlgorithm(signatureAlg);
+			X509Certificate cert = certGen.generate(getCaPrivKey(), "BC");
+			insertUsrCert(); //Controllare con DB
 			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
-			DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
-			Document doc = docBuilder.newDocument();
-			//create the root element and add it to the document
-			Element root = doc.createElement("message");
-			root.setAttribute("operation", "setCertStateResp");
+            DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+            Document doc = docBuilder.newDocument();
+            Element root = doc.createElement("createNewCertificateSSResp");
+            Element certEl = doc.createElement("serial");
+            certEl.appendChild(doc.createTextNode(serial + ""));
+            root.appendChild(certEl);
+            Element stateEl = doc.createElement("cert");
+            stateEl.appendChild(doc.createTextNode(convX509ToBase64(cert)));
+            root.appendChild(stateEl);
+            send(root);
+		}catch (Exception e){
+			System.out.println(e.getMessage());
+		}	
+	}
+	
+	//Invia il certificato appena creato sotto richiesta dell'utente
+	protected void createNewCertificate(String message){
+		try{
+			Document doc = convStringToXML(message);
+			Node certificateData = (doc.getElementsByTagName("createNewCertificateSS")).item(0);
+			Date notAfter = convStringToDate(doc.getElementsByTagName("notAfter").item(0).getNodeValue());
+			Date notBefore = convStringToDate(doc.getElementsByTagName("notBefore").item(0).getNodeValue());
+			String subjectDN = doc.getElementsByTagName("subjectDN").item(0).getNodeValue();
+			String publicKey = doc.getElementsByTagName("publicKey").item(0).getNodeValue();
+			String signatureAlg = doc.getElementsByTagName("signatureAlg").item(0).getNodeValue();
+			String issuerName = CANAME;
+			int serial = getFreeSerial();
+			
+			X509V1CertificateGenerator certGen = new X509V1CertificateGenerator();
+			X500Principal dnName = new X500Principal("CN=Test CA Certificate");
+
+			certGen.setSerialNumber(new BigInteger(serial + ""));
+			certGen.setIssuerDN(dnName);
+			certGen.setNotBefore(notAfter);
+			certGen.setNotAfter(notBefore);
+			certGen.setSubjectDN(dnName);                       // note: same as issuer
+			certGen.setPublicKey(convStringToPubKey(publicKey));
+			certGen.setSignatureAlgorithm(signatureAlg);
+			X509Certificate cert = certGen.generate(getCaPrivKey(), "BC");
+			insertUsrCert(); //Controllare con DB
+			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+            Document doc = docBuilder.newDocument();
+            Element root = doc.createElement("createNewCertificateSSResp");
+            Element certEl = doc.createElement("serial");
+            certEl.appendChild(doc.createTextNode(serial + ""));
+            root.appendChild(certEl);
+            Element stateEl = doc.createElement("cert");
+            stateEl.appendChild(doc.createTextNode(convX509ToBase64(cert)));
+            root.appendChild(stateEl);
+            send(root);
+		}catch (Exception e){
+			System.out.println(e.getMessage());
+		}	
+	}
+	
+	protected void revokedCert(String message, String cert, int reason){
+		try{
+			boolean b = checkDigest(convStringToXML(message));
+			if (b == true){
+				setStateCert(cert, REVOKED, 0);
+				crlGen.addCRLEntry(new BigInteger(cert), getDate(), reason);
+				DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+				DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+				Document doc = docBuilder.newDocument();
+				//create the root element and add it to the document
+				Element root = doc.createElement("message");
+				root.setAttribute("operation", "revokedCertResp");
+				Element response = doc.createElement("result");
+				response.appendChild(doc.createTextNode("OK"));
+				root.appendChild(response);
+				send(root);
+			}else{
+				operationError("");
+			}
 		}catch(Exception e){
 			System.out.println(e.getMessage());
 		}
@@ -245,47 +353,10 @@ public class CertificateAuthorityConn extends DBQuery{
 		
 	}
 	
-	//Invia il certificato appena creato sotto richiesta dell'utente
-	protected void sendCreateCert(String serialCert){
-		try{
-			ResultSet rs = getUsrCert(serialCert);
-			rs.first();
-			String cert = rs.getString(1);
-			String state = rs.getString(2);
-			String notBefore = rs.getString(3);
-			String notAfter = rs.getString(4);
-			String serialNumber = rs.getString(5);
-			String subjectDN = rs.getString(6);
-			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
-            DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
-            Document doc = docBuilder.newDocument();
-            //create the root element and add it to the document
-            Element root = doc.createElement("message");
-            root.setAttribute("operation", "sendOCSP");
-            doc.appendChild(root);
-            //create child element and append it
-            Element certEl = doc.createElement("cert");
-            certEl.appendChild(doc.createTextNode(cert));
-            root.appendChild(certEl);
-            Element stateEl = doc.createElement("state");
-            stateEl.appendChild(doc.createTextNode(state));
-            root.appendChild(stateEl);
-            Element notBeforeEl = doc.createElement("notBefore");
-            notBeforeEl.appendChild(doc.createTextNode(notBefore));
-            root.appendChild(notBeforeEl);
-            Element notAfterEl = doc.createElement("notAfter");
-            notAfterEl.appendChild(doc.createTextNode(notAfter));
-            root.appendChild(notAfterEl);
-            Element serialEl = doc.createElement("serialNumber");
-            serialEl.appendChild(doc.createTextNode(serialNumber));
-            root.appendChild(serialEl);
-            Element subjectDNEl = doc.createElement("subjectDN");
-            subjectDNEl.appendChild(doc.createTextNode(subjectDN));
-            root.appendChild(subjectDNEl);
-           send(root);
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-		}
+	
+	
+	//Metodo che invia il messaggio di errore
+	protected void operationError(String error){
 		
 	}
 	
@@ -314,7 +385,29 @@ public class CertificateAuthorityConn extends DBQuery{
 		}
 	}
 	
-	//Restituisce la data attuale nel forato AAAA/M/GG HH:MM:SS
+	//Restituisce la data attuale nel formato Date
+	protected static Date getDate(){
+		GregorianCalendar gc = new GregorianCalendar();
+		int year = gc.get(Calendar.YEAR);
+		int month = gc.get(Calendar.MONTH);
+		int day = gc.get(Calendar.DAY_OF_MONTH);
+		int hrs = gc.get(Calendar.HOUR);
+		int min = gc.get(Calendar.MINUTE);
+		int sec = gc.get(Calendar.SECOND);
+		return new Date(year, month, day, hrs, min, sec);
+	}
+	
+	//Converte unsa Stringa in formato gg/mm/aaaa in util.Date
+	protected Date convStringToDate(String s){
+		StringTokenizer token = new StringTokenizer(s, "/");
+		int day = Integer.parseInt(token.nextToken());
+		int month = Integer.parseInt(token.nextToken());
+		int year = Integer.parseInt(token.nextToken());
+		return new Date (year, month, day);
+	}
+	
+	/**
+	//Restituisce la data attuale nel formato Date
 	protected static String getDate(){
 		GregorianCalendar gc = new GregorianCalendar();
 		String year = ("0" + gc.get(Calendar.YEAR));
@@ -331,6 +424,8 @@ public class CertificateAuthorityConn extends DBQuery{
 		second = second.substring(second.length() - 2, second.length());
 		return year + "/" + month + "/" + day + " " + hour + ":" + minute + ":" + second + ":00";
 	}
+	 
+	 */
 
 	//Metodi per le conversioni delle chiavi
 

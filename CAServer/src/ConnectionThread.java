@@ -4,6 +4,7 @@ import java.net.Socket;
 import java.sql.SQLException;
 import java.util.Properties;
 
+import org.bouncycastle.x509.X509V2CRLGenerator;
 
 public class ConnectionThread extends Thread{
 	
@@ -12,13 +13,15 @@ public class ConnectionThread extends Thread{
 	private String dbClassName;
 	private String dbPath;
 	private Properties access;
+	private X509V2CRLGenerator crlGen;
 	
-	public ConnectionThread(String dbClassName, String dbPath, int port, Properties access) throws IOException{
+	public ConnectionThread(String dbClassName, String dbPath, int port, Properties access, X509V2CRLGenerator crlGen) throws IOException{
 		this.dbClassName = dbClassName;
 		this.dbPath = dbPath;
 		this.port = port;
 		this.access = access;
-	    sSocket  = new ServerSocket(port);
+		this.crlGen = crlGen;
+	    sSocket  = new ServerSocket(this.port);
 	}
 	
 	public void run(){
@@ -26,10 +29,8 @@ public class ConnectionThread extends Thread{
 			try {
 				createConnection();
 			} catch (IOException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			} catch (SQLException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
@@ -37,7 +38,7 @@ public class ConnectionThread extends Thread{
 	
 	public void createConnection() throws IOException, SQLException{
 		Socket clientConnection = sSocket.accept();
-		CertificateAuthorityConn caThread = new CertificateAuthorityConn(clientConnection, dbClassName, dbPath, access);
+		CertificateAuthorityConn caThread = new CertificateAuthorityConn(clientConnection, dbClassName, dbPath, access, crlGen);
 	}
 
 }
