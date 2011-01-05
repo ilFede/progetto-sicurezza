@@ -26,7 +26,7 @@ public class UserProfile {
 			DocumentBuilderFactory dbf = DocumentBuilderFactory.newInstance();
 			DocumentBuilder db = dbf.newDocumentBuilder();
 			Document doc = db.parse(file);
-			doc.getDocumentElement().normalize();
+			//doc.getDocumentElement().normalize();
 			commonName = doc.getElementsByTagName("commonName").item(0).getChildNodes().item(0).getNodeValue();
 			organization = doc.getElementsByTagName("organization").item(0).getChildNodes().item(0).getNodeValue();
 			mail = doc.getElementsByTagName("mail").item(0).getChildNodes().item(0).getNodeValue();
@@ -55,9 +55,10 @@ public class UserProfile {
             Document doc = docBuilder.newDocument();
             //create the root element and add it to the document
             Element root = doc.createElement("userProfile");
+            root.setAttribute("operation", "sadasd");
             doc.appendChild(root);
             //create a comment and put it in the root element
-            root.appendChild(doc.createComment("Profilo utente"));
+            root.appendChild(doc.createComment("Profilo \nutente"));
             //create child element and append it
             Element userEl = doc.createElement("user");
             Element commonNameEl = doc.createElement("commonName");
@@ -93,7 +94,7 @@ public class UserProfile {
             //create file from xml tree
             StringWriter sw = new StringWriter();
             StreamResult result = new StreamResult(sw);
-            DOMSource source = new DOMSource(doc);
+            DOMSource source = new DOMSource(root);
             trans.transform(source, result);
             String xmlString = sw.toString();
             FileOutputStream file = new FileOutputStream(path + commonName + ".usr");
