@@ -29,10 +29,13 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
+import java.security.cert.CRLException;
 import java.security.cert.CertificateEncodingException;
+import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509CRL;
 import java.security.cert.X509Certificate;
+import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 import java.util.ArrayList;
@@ -53,12 +56,12 @@ public class ClientCA extends DBQueryClient{
 	protected final String EXPIRED = "expired";
 	protected final String CANAME = "FedeCA";
 	protected final String CRL_SIGN_ALG = "MD2withRSA";
+	protected final String OP_FAIL = "fail";
 	
 	//Costruttore
-	public ClientCA(String dbClassName, String dbPath, Properties dbAccess, String host, int port) throws SQLException{
+	public ClientCA(String dbClassName, String dbPath, Properties dbAccess, Socket conn) throws SQLException{
 		super(dbClassName, dbPath, dbAccess);
 		try{
-			Socket conn = new Socket(host, port);
 			in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
 			out = new BufferedWriter(new OutputStreamWriter(conn.getOutputStream()));	
 			caPubKey = recieveCaPubKey();
@@ -120,7 +123,7 @@ public class ClientCA extends DBQueryClient{
 			root.setAttribute("operation", "sendCaPubKey");
 			sendWithoutDigest(root);
 			String document = in.readLine();
-			Document response = convStringToXML(document);
+			Document response = convStringToXml(document);
 			Node message = (response.getElementsByTagName("message").item(0));
 			String caPubKeyString = message.getChildNodes().item(0).getTextContent();
 			return convStringToPubKey(caPubKeyString);
@@ -143,7 +146,7 @@ public class ClientCA extends DBQueryClient{
 			sendWithoutDigest(root);
 			
 			String document = in.readLine();
-			Document response = convStringToXML(document);
+			Document response = convStringToXml(document);
 			boolean digestOk = checkDigest(response);
 			if (digestOk == true){			
 				Node message = (response.getElementsByTagName("message").item(0));
@@ -169,7 +172,7 @@ public class ClientCA extends DBQueryClient{
 			sendWithoutDigest(root);
 			
 			String document = in.readLine();
-			Document response = convStringToXML(document);
+			Document response = convStringToXml(document);
 			boolean digestOk = checkDigest(response);
 			if (digestOk == true){			
 				Node message = (response.getElementsByTagName("message").item(0));
@@ -199,7 +202,7 @@ public class ClientCA extends DBQueryClient{
 			sendWithoutDigest(root);
 			
 			String document = in.readLine();
-			Document response = convStringToXML(document);
+			Document response = convStringToXml(document);
 			boolean digestOk = checkDigest(response);
 			if (digestOk == true){			
 				Node message = (response.getElementsByTagName("message").item(0));
@@ -242,13 +245,14 @@ public class ClientCA extends DBQueryClient{
 	        ou.appendChild(doc.createTextNode(organizationUnit));
 			root.appendChild(ou);
 			sendWithoutDigest(root);
+			//Risposta
 			String document = in.readLine();
-			Document response = convStringToXML(document);
+			Document response = convStringToXml(document);
 			boolean digestOk = checkDigest(response);
 			if (digestOk == true){			
 				String serial = (response.getElementsByTagName("serial").item(0)).getNodeValue();
 				String cert = (response.getElementsByTagName("cert").item(0)).getNodeValue();
-				//--------------- Inserire nel DB ----------
+				insertUsrCert(serial, convPrivKeyToBase64(kp.getPrivate()), convPubKeyToBase64(kp.getPublic()), cert);
 			}else{
 				System.out.println("firma non valida");
 			}
@@ -290,12 +294,12 @@ public class ClientCA extends DBQueryClient{
 			PrivateKey privk = convStringToPrivKey(rs.getString(1));
 			sendWithDigest(root, privk);
 			String document = in.readLine();
-			Document response = convStringToXML(document);
+			Document response = convStringToXml(document);
 			boolean digestOk = checkDigest(response);
 			if (digestOk == true){			
 				String serial = (response.getElementsByTagName("serial").item(0)).getNodeValue();
 				String cert = (response.getElementsByTagName("cert").item(0)).getNodeValue();
-				//--------------- Inserire nel DB ----------
+				insertUsrCert(serial, convPrivKeyToBase64(kp.getPrivate()), convPubKeyToBase64(kp.getPublic()), cert);
 			}else{
 				System.out.println("firma non valida");
 			}
@@ -304,6 +308,49 @@ public class ClientCA extends DBQueryClient{
 		}
 	}
 	
+	//Invia la richiesta di revoca di un certificato
+	protected void sendRevokeRequest(String serial, int reason, String pkSerial) throws ParserConfigurationException, IOException, SQLException, InvalidKeySpecException, NoSuchAlgorithmException{
+		DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+		DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+		Document doc = docBuilder.newDocument();
+		//create the root element and add it to the document
+		Element root = doc.createElement("message");
+		root.setAttribute("operation", "revokeCert");
+		Element sr = doc.createElement("serial");
+        sr.appendChild(doc.createTextNode(serial));
+		root.appendChild(sr);
+		Element mot = doc.createElement("reason");
+        mot.appendChild(doc.createTextNode(reason + ""));
+		root.appendChild(mot);
+		ResultSet rs = getPrivKeyToDB(pkSerial);
+		rs.first();
+		PrivateKey privk = convStringToPrivKey(rs.getString(1));
+		sendWithDigest(root, privk);
+		//Risposta
+		String document = in.readLine();	
+	}
+	
+	//Chiede la CRL
+	protected void sendCrlRequest(String serial, String pkserial) throws ParserConfigurationException, SQLException, InvalidKeySpecException, NoSuchAlgorithmException, IOException, SAXException, InvalidKeyException, SignatureException, TransformerException, CertificateException, NoSuchProviderException, CRLException{
+		DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+		DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+		Document doc = docBuilder.newDocument();
+		//create the root element and add it to the document
+		Element root = doc.createElement("message");
+		root.setAttribute("operation", "sendCrl");
+		ResultSet rs = getPrivKeyToDB(pkserial);
+		rs.first();
+		PrivateKey privk = convStringToPrivKey(rs.getString(1));
+		sendWithDigest(root, privk);
+		//Risposta
+		String document = in.readLine();	
+		Document response = convStringToXml(document);
+		boolean digestOk = checkDigest(response);
+		if (digestOk == true){
+			String crlString = response.getElementsByTagName("sendCRLResp").item(0).getChildNodes().item(0).getNodeValue();
+			X509CRL crl = convBase64ToCrl(crlString);		
+		}
+	}
 			
 	public void closeConnection() throws IOException{
 		in.close();
@@ -320,6 +367,7 @@ public class ClientCA extends DBQueryClient{
 	
 	//Metodi per esegiure le operazioni
 	
+	//Crea un coppia di chiavi
 	private KeyPair createKeyPair(int l) throws NoSuchAlgorithmException{
 		//inizializza un generatore di coppie di chiavi usando RSA
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
@@ -328,102 +376,78 @@ public class ClientCA extends DBQueryClient{
         KeyPair kp = kpg.generateKeyPair();
         return kp;
 	}
-		
+			
 	
     //Metodi per i messaggi XML
 	
 	//Genera la firma base64 di un messaggio
-	protected String createDigest(String data, PrivateKey kpriv){
-		try{
-			Signature s = Signature.getInstance(DIGEST_SIGN_ALG);
-			s.initSign(kpriv);
-			s.update(data.getBytes());
-			byte[] signature = s.sign();
-			return new String(Base64.encode(signature));
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
+	protected String createDigest(String data, PrivateKey kpriv) throws SignatureException, InvalidKeyException, NoSuchAlgorithmException{
+		Signature s = Signature.getInstance(DIGEST_SIGN_ALG);
+		s.initSign(kpriv);
+		s.update(data.getBytes());
+		byte[] signature = s.sign();
+		return new String(Base64.encode(signature));
 	}
 	
 	//Controlla la firma di un messaggio
-	protected boolean checkDigest(Document doc){
-		try{
-			String message = getMessage(doc);
-			String digest64 = getDigest64(doc);
-			String sender = getSender(doc);
-			Signature s = Signature.getInstance(DIGEST_SIGN_ALG);
-			s.update(message.getBytes());
-			s.initVerify(caPubKey);
-			boolean digestOK = s.verify(Base64.decode(digest64));
-			return digestOK;
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return false;
-		}
+	protected boolean checkDigest(Document doc) throws SignatureException, NoSuchAlgorithmException, TransformerException, InvalidKeyException{
+		String message = getMessage(doc);
+		String digest64 = getDigest64(doc);
+		String sender = getSender(doc);
+		Signature s = Signature.getInstance(DIGEST_SIGN_ALG);
+		s.update(message.getBytes());
+		s.initVerify(caPubKey);
+		boolean digestOK = s.verify(Base64.decode(digest64));
+		return digestOK;
 	}
 	
 	//Restituisce la stringa rappresentante il messaggio
-	protected String getMessage(Document doc){
-		try{
-			//doc.getDocumentElement().normalize();
-			Node messageNode = (doc.getElementsByTagName("message").item(0));
-			//Create a transformer
-			TransformerFactory transfac = TransformerFactory.newInstance();
-			Transformer trans = transfac.newTransformer();
-			trans.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
-			trans.setOutputProperty(OutputKeys.INDENT, "yes");
-			//create file from xml tree
-			StringWriter sw = new StringWriter();
-			StreamResult result = new StreamResult(sw);
-			DOMSource messageSouce = new DOMSource(messageNode);
-			trans.transform(messageSouce, result);
-			String message = sw.toString();
-			return message;
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
+	protected String getMessage(Document doc) throws TransformerException{
+		//doc.getDocumentElement().normalize();
+		Node messageNode = (doc.getElementsByTagName("message").item(0));
+		//Create a transformer
+		TransformerFactory transfac = TransformerFactory.newInstance();
+		Transformer trans = transfac.newTransformer();
+		trans.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+		trans.setOutputProperty(OutputKeys.INDENT, "yes");
+		//create file from xml tree
+		StringWriter sw = new StringWriter();
+		StreamResult result = new StreamResult(sw);
+		DOMSource messageSouce = new DOMSource(messageNode);
+		trans.transform(messageSouce, result);
+		String message = sw.toString();
+		return message;
 	}
 	
 	//Restituisce la stringa BASE64 rappresentante la firma
-	protected String getDigest64(Document doc){
-		try{
-			//doc.getDocumentElement().normalize();
-			Node digestNode = (doc.getElementsByTagName("digest").item(0));
-			//Create a transformer
-			TransformerFactory transfac = TransformerFactory.newInstance();
-			Transformer trans = transfac.newTransformer();
-			trans.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
-			trans.setOutputProperty(OutputKeys.INDENT, "yes");
-			//create file from xml tree
-			StringWriter sw = new StringWriter();
-			StreamResult result = new StreamResult(sw);
-			DOMSource messageSouce = new DOMSource(digestNode.getFirstChild());
-			trans.transform(messageSouce, result);
-			String message = sw.toString();
-			return message;
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
+	protected String getDigest64(Document doc) throws TransformerException{
+		//doc.getDocumentElement().normalize();
+		Node digestNode = (doc.getElementsByTagName("digest").item(0));
+		//Create a transformer
+		TransformerFactory transfac = TransformerFactory.newInstance();
+		Transformer trans = transfac.newTransformer();
+		trans.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
+		trans.setOutputProperty(OutputKeys.INDENT, "yes");
+		//create file from xml tree
+		StringWriter sw = new StringWriter();
+		StreamResult result = new StreamResult(sw);
+		DOMSource messageSouce = new DOMSource(digestNode.getFirstChild());
+		trans.transform(messageSouce, result);
+		String message = sw.toString();
+		return message;
 	}
 	
 	//Restituisce la stringa rappresentante il mittente del messaggio
 	protected String getSender(Document doc){
-		try{
-			//doc.getDocumentElement().normalize();
-			NamedNodeMap attrs = (doc.getElementsByTagName("document").item(0)).getAttributes();
-			Node senderNode = attrs.getNamedItem ("sender");
-			String sender = senderNode.getNodeValue();
-			return sender;
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
+		//doc.getDocumentElement().normalize();
+		NamedNodeMap attrs = (doc.getElementsByTagName("document").item(0)).getAttributes();
+		Node senderNode = attrs.getNamedItem ("sender");
+		String sender = senderNode.getNodeValue();
+		return sender;
 	}
 	
     //Metodi per le conversioni varie
+	
 	
 	//Converte unsa Stringa in formato gg/mm/aaaa in util.Date
 	protected Date convStringToDate(String s){
@@ -446,55 +470,35 @@ public class ClientCA extends DBQueryClient{
 	}
 	
 	//Converte una stringa in una chiave pubblica
-	protected static PublicKey convStringToPubKey(String publicKey){
-		try{
-			byte[] publicKeyBytes = publicKey.getBytes();
-			X509EncodedKeySpec ks = new X509EncodedKeySpec(publicKeyBytes);
-			KeyFactory kf = KeyFactory.getInstance("RSA");
-			return kf.generatePublic(ks);
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
+	protected static PublicKey convStringToPubKey(String publicKey) throws InvalidKeySpecException, NoSuchAlgorithmException{
+		byte[] publicKeyBytes = publicKey.getBytes();
+		X509EncodedKeySpec ks = new X509EncodedKeySpec(publicKeyBytes);
+		KeyFactory kf = KeyFactory.getInstance("RSA");
+		return kf.generatePublic(ks);
 	}
 	
 	//Converte una stringa in una chiave privata
-	protected static PrivateKey convStringToPrivKey(String privateKey){
-		try{
-			byte[] privateKeyBytes = privateKey.getBytes();
-			PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKeyBytes);
-			KeyFactory kf = KeyFactory.getInstance("RSA");
-			return kf.generatePrivate(ks);
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
+	protected static PrivateKey convStringToPrivKey(String privateKey) throws InvalidKeySpecException, NoSuchAlgorithmException{
+		byte[] privateKeyBytes = privateKey.getBytes();
+		PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKeyBytes);
+		KeyFactory kf = KeyFactory.getInstance("RSA");
+		return kf.generatePrivate(ks);
 	}
 	
 	//Converte una stringa BASE64 in una chiave pubblica
-	protected static PublicKey convBase64ToPubKey(String publicKey){
-		try{
-			byte[] publicKeyBytes =  Base64.decode(publicKey);
-			X509EncodedKeySpec ks = new X509EncodedKeySpec(publicKeyBytes);
-			KeyFactory kf = KeyFactory.getInstance("RSA");
-			return kf.generatePublic(ks);
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
+	protected static PublicKey convBase64ToPubKey(String publicKey) throws InvalidKeySpecException, NoSuchAlgorithmException{
+		byte[] publicKeyBytes =  Base64.decode(publicKey);
+		X509EncodedKeySpec ks = new X509EncodedKeySpec(publicKeyBytes);
+		KeyFactory kf = KeyFactory.getInstance("RSA");
+		return kf.generatePublic(ks);
 	}
 	
 	//Converte una stringa BASE64 in una chiave privata
-	protected static PrivateKey convBase64ToPrivKey(String privateKey){
-		try{
-			byte[] privateKeyBytes = Base64.decode(privateKey);
-			PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKeyBytes);
-			KeyFactory kf = KeyFactory.getInstance("RSA");
-			return kf.generatePrivate(ks);
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
+	protected static PrivateKey convBase64ToPrivKey(String privateKey) throws InvalidKeySpecException, NoSuchAlgorithmException{
+		byte[] privateKeyBytes = Base64.decode(privateKey);
+		PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKeyBytes);
+		KeyFactory kf = KeyFactory.getInstance("RSA");
+		return kf.generatePrivate(ks);
 	}
 	
 	//converte una chiave privata in una stringa
@@ -518,7 +522,7 @@ public class ClientCA extends DBQueryClient{
 	}
 
 	//Converte una stringa in un Document XML
-	protected Document convStringToXML(String s) throws SAXException, IOException, ParserConfigurationException{
+	protected Document convStringToXml(String s) throws SAXException, IOException, ParserConfigurationException{
 		DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
 	    DocumentBuilder parser = factory.newDocumentBuilder();
 	    Document d = parser.parse(new ByteArrayInputStream(s.getBytes()));
@@ -554,106 +558,95 @@ public class ClientCA extends DBQueryClient{
 	//Metodi per le conversioni dei certificati
 	
 	//Converte un certificato dal formato X509V3 a XML
-	protected String convX509ToXML (X509Certificate certSigned){
-		try{
-			org.w3c.dom.Document xmldoc = null;
-	        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-	        DocumentBuilder builder = factory.newDocumentBuilder();
-	        DOMImplementation impl = builder.getDOMImplementation();
-	        Element elem = null;
-	        Node n = null;
-	        // Document.
-	        xmldoc = impl.createDocument(null, "certSigned", null);
-	        // Root element.
-	        Element root = xmldoc.getDocumentElement();
-	        elem = xmldoc.createElementNS(null, "serialNumber");
-	        n = xmldoc.createTextNode(certSigned.getSerialNumber().toString());
-	        elem.appendChild(n);
-	        root.appendChild(elem);
-	        elem = xmldoc.createElementNS(null, "notBefore");
-	        n = xmldoc.createTextNode(certSigned.getNotBefore().toString());
-	        elem.appendChild(n);
-	        root.appendChild(elem);
-	        elem = xmldoc.createElementNS(null, "notAfter");
-	        n = xmldoc.createTextNode(certSigned.getNotAfter().toString());
-	        elem.appendChild(n);
-	        root.appendChild(elem);
-	        elem = xmldoc.createElementNS(null, "issuerDN");
-	        n = xmldoc.createTextNode(certSigned.getIssuerDN().toString());
-	        elem.appendChild(n);
-	        root.appendChild(elem);
-	        elem = xmldoc.createElementNS(null, "subjectDN");
-	        n = xmldoc.createTextNode(certSigned.getSubjectDN().toString());
-	        elem.appendChild(n);
-	        root.appendChild(elem);
-	        elem = xmldoc.createElementNS(null, "signAlgName");
-	        n = xmldoc.createTextNode(certSigned.getSigAlgName().toString());
-	        elem.appendChild(n);
-	        root.appendChild(elem);
-	        elem = xmldoc.createElementNS(null, "signatureEncoded");
-	        String base64Signature = new String(Base64.encode(certSigned.getSignature()));
-	        n = xmldoc.createTextNode(base64Signature);
-	        elem.appendChild(n);
-	        root.appendChild(elem);
-	        elem = xmldoc.createElementNS(null, "publicKey");
-	        n = xmldoc.createTextNode(convPubKeyToString(certSigned.getPublicKey()));
-	        elem.appendChild(n);
-	        root.appendChild(elem);
-	        elem = xmldoc.createElementNS(null, "certSignEncoded");
-	        String base64certEncoding = new String(Base64.encode(certSigned.getEncoded()));
-	        n = xmldoc.createTextNode(base64certEncoding);
-	        elem.appendChild(n);
-	        root.appendChild(elem);
-	        DOMSource domSource = new DOMSource(xmldoc);
-	        TransformerFactory tf = TransformerFactory.newInstance();
-	        Transformer trans = tf.newTransformer();
-	        StringWriter sw = new StringWriter();
-	        trans.transform((domSource), new StreamResult(sw));
-	        String theAnswer = sw.toString();
-	        System.out.println(theAnswer);
-	        return theAnswer;//return the string
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
+	protected String convX509ToXML (X509Certificate certSigned) throws TransformerException, ParserConfigurationException, CertificateEncodingException{
+		org.w3c.dom.Document xmldoc = null;
+        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder builder = factory.newDocumentBuilder();
+        DOMImplementation impl = builder.getDOMImplementation();
+        Element elem = null;
+        Node n = null;
+        // Document.
+        xmldoc = impl.createDocument(null, "certSigned", null);
+        // Root element.
+        Element root = xmldoc.getDocumentElement();
+        elem = xmldoc.createElementNS(null, "serialNumber");
+        n = xmldoc.createTextNode(certSigned.getSerialNumber().toString());
+        elem.appendChild(n);
+        root.appendChild(elem);
+        elem = xmldoc.createElementNS(null, "notBefore");
+        n = xmldoc.createTextNode(certSigned.getNotBefore().toString());
+        elem.appendChild(n);
+        root.appendChild(elem);
+        elem = xmldoc.createElementNS(null, "notAfter");
+        n = xmldoc.createTextNode(certSigned.getNotAfter().toString());
+        elem.appendChild(n);
+        root.appendChild(elem);
+        elem = xmldoc.createElementNS(null, "issuerDN");
+        n = xmldoc.createTextNode(certSigned.getIssuerDN().toString());
+        elem.appendChild(n);
+        root.appendChild(elem);
+        elem = xmldoc.createElementNS(null, "subjectDN");
+        n = xmldoc.createTextNode(certSigned.getSubjectDN().toString());
+        elem.appendChild(n);
+        root.appendChild(elem);
+        elem = xmldoc.createElementNS(null, "signAlgName");
+        n = xmldoc.createTextNode(certSigned.getSigAlgName().toString());
+        elem.appendChild(n);
+        root.appendChild(elem);
+        elem = xmldoc.createElementNS(null, "signatureEncoded");
+        String base64Signature = new String(Base64.encode(certSigned.getSignature()));
+        n = xmldoc.createTextNode(base64Signature);
+        elem.appendChild(n);
+        root.appendChild(elem);
+        elem = xmldoc.createElementNS(null, "publicKey");
+        n = xmldoc.createTextNode(convPubKeyToString(certSigned.getPublicKey()));
+        elem.appendChild(n);
+        root.appendChild(elem);
+        elem = xmldoc.createElementNS(null, "certSignEncoded");
+        String base64certEncoding = new String(Base64.encode(certSigned.getEncoded()));
+        n = xmldoc.createTextNode(base64certEncoding);
+        elem.appendChild(n);
+        root.appendChild(elem);
+        DOMSource domSource = new DOMSource(xmldoc);
+        TransformerFactory tf = TransformerFactory.newInstance();
+        Transformer trans = tf.newTransformer();
+        StringWriter sw = new StringWriter();
+        trans.transform((domSource), new StreamResult(sw));
+        String theAnswer = sw.toString();
+        System.out.println(theAnswer);
+        return theAnswer;//return the string
 	}
 	
 	
 	//Converte una certificato in una stringa base 64
-	protected String convX509ToBase64(X509Certificate cert){
-		try{
-			String strCert = new String(cert.getEncoded());
-			byte[] byteBase64 = Base64.encode(strCert.getBytes());
-			return new String(byteBase64);
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
+	protected String convX509ToBase64(X509Certificate cert) throws CertificateEncodingException{
+		String strCert = new String(cert.getEncoded());
+		byte[] byteBase64 = Base64.encode(strCert.getBytes());
+		return new String(byteBase64);
+		
 	}
 	
 	//Converte una stringa base64 iu un certificato
-	protected X509Certificate convBase64ToX509(String base64Cert){
-		try{
-			byte[] byteCert = Base64.decode(base64Cert.getBytes());
-			CertificateFactory fact = CertificateFactory.getInstance("X.509","BC");
-			X509Certificate cert = (X509Certificate)fact.generateCertificate(new ByteArrayInputStream(byteCert));
-			return cert;
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
+	protected X509Certificate convBase64ToX509(String base64Cert) throws CertificateException, NoSuchProviderException{
+		byte[] byteCert = Base64.decode(base64Cert.getBytes());
+		CertificateFactory fact = CertificateFactory.getInstance("X.509","BC");
+		X509Certificate cert = (X509Certificate)fact.generateCertificate(new ByteArrayInputStream(byteCert));
+		return cert;
 	}
 	
 	//Converte un X509CRL in Base64
-	protected String convCrlToBase64(X509CRL crl){
-		try{
-			byte[] crlByte = crl.getEncoded();
-			byte[] clrBase64 = Base64.encode(crlByte);
-			return new String(clrBase64);
-		}catch (Exception e){
-			System.out.println(e.getMessage());
-			return null;
-		}
+	protected String convCrlToBase64(X509CRL crl) throws CRLException{
+		byte[] crlByte = crl.getEncoded();
+		byte[] clrBase64 = Base64.encode(crlByte);
+		return new String(clrBase64);
+	}
+	
+	//Converte una stringa Base64 in una X509CRL
+	protected X509CRL convBase64ToCrl(String crlString) throws CertificateException, NoSuchProviderException, CRLException{
+		ByteArrayInputStream bais = new ByteArrayInputStream(Base64.decode(crlString));
+        CertificateFactory fact = CertificateFactory.getInstance("X.509", "BC");
+        X509CRL crl = (X509CRL) fact.generateCRL(bais);
+        return crl;
 	}
 	
 	/**public static void main(String args[]) throws UnknownHostException, IOException{
