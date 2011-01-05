@@ -25,7 +25,7 @@ import org.bouncycastle.util.encoders.Base64;
 import org.bouncycastle.x509.X509V1CertificateGenerator;
 import org.bouncycastle.x509.X509V2CRLGenerator;
 
-public class CertificateAuthority extends DBQuery {
+public class CertificateAuthority extends DBQueryCA {
 	
 	private String dbClassName;
 	private Properties dbAccess;

@@ -12,7 +12,7 @@ import java.util.GregorianCalendar;
 import java.util.Properties;
 
 
-public class DBQuery {
+public class DBQueryCA {
 	
 	private Statement stm;
 	private Connection conn;
@@ -24,7 +24,7 @@ public class DBQuery {
 	private final String REVOKED = "revoked";
 	private final String EXPIRED = "expired";
 	
-	public DBQuery(String dbClassName, String dbPath, Properties dbAccess) throws SQLException {
+	public DBQueryCA(String dbClassName, String dbPath, Properties dbAccess) throws SQLException {
 		this.dbClassName = dbClassName;
 		this.dbPath = dbPath;
 		this.dbAccess = dbAccess;
