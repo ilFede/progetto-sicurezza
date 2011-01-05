@@ -1,3 +1,5 @@
+// Fare in modo che sia il gestore delle operazioni a gestire le eccezioni, mandando in caso negativo un messaggio di errore standared firmato
+
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
@@ -51,17 +53,17 @@ import org.w3c.dom.Node;
 import org.xml.sax.SAXException;
 
 
-public class CertificateAuthorityConn extends DBQuery{
+public class CertificateAuthorityConn extends DBQueryCA{
 	protected Socket clientConnection;
 	protected BufferedReader in;
 	protected BufferedWriter out;
 	protected X509V2CRLGenerator crlGen;
-	protected final String SIGNALG = "DSA";
-	private final String GOOD = "good";
-	private final String REVOKED = "revoked";
-	private final String EXPIRED = "expired";
-	private final String CANAME = "FedeCA";
-	private final String CRLSIGNALG = "MD2withRSA";
+	protected final String DIGEST_SIGN_ALG = "DSA";
+	protected final String GOOD = "good";
+	protected final String REVOKED = "revoked";
+	protected final String EXPIRED = "expired";
+	protected final String CANAME = "FedeCA";
+	protected final String CRL_SIGN_ALG = "MD2withRSA";
 	
 	public CertificateAuthorityConn(Socket clientConnection, String dbClassName, String dbPath, Properties dbAccess, X509V2CRLGenerator crlGen) throws SQLException{
 		super(dbClassName, dbPath, dbAccess);
@@ -71,12 +73,14 @@ public class CertificateAuthorityConn extends DBQuery{
 			in = new BufferedReader(new InputStreamReader(clientConnection.getInputStream()));
 			out = new BufferedWriter(new OutputStreamWriter(clientConnection.getOutputStream()));
 		}catch (Exception e){
+			
 			System.out.println(e.getMessage());
 		}
 	}
 	
 	//Metodi per la comunicazione
 	
+	//Riceve un messaggio
 	protected void recieve(){
 		try{
 			String document = in.readLine();
@@ -85,13 +89,25 @@ public class CertificateAuthorityConn extends DBQuery{
 			System.out.println(e.getMessage());
 		}
 	}
-	 
-	protected void send(Element elem){
+	
+	//Invia un messaggio firmandolo
+	protected void sendWithDigest(Element elem){
 		try{
 			String xmlString = convXMLToString(elem);
 			PrivateKey key = getCaPrivKey();
 			String digest = createDigest(xmlString, key);
 			String message = "<document>/n" + convXMLToString(elem) + "<digest>" + digest + "</digest>/n</document>";
+			out.write(message);
+		}catch (Exception e){
+			System.out.println(e.getMessage());
+		}
+	}
+	
+	//Invia un messaggio senza firmarlo
+	protected void sendWithoutDigest(Element elem){
+		try{
+			String xmlString = convXMLToString(elem);
+			String message = "<document>/n" + convXMLToString(elem) + "/n</document>";
 			out.write(message);
 		}catch (Exception e){
 			System.out.println(e.getMessage());
@@ -114,14 +130,14 @@ public class CertificateAuthorityConn extends DBQuery{
 		//doc.getDocumentElement().normalize();
 		Node operation = (doc.getElementsByTagName("message").item(0)).getChildNodes().item(0);
 		String opName = operation.getNodeName();
-		if (opName.equals("getUsrList")){
-			getUsrList(message);
-		}else if (operation.equals("getCertUsrList")){
+		if (opName.equals("sendUsrList")){
+			sendUsrList(message);
+		}else if (operation.equals("sendCertUsrList")){
 			String usr = operation.getChildNodes().item(0).getNodeValue();
-			getCertUsrList(message, usr);
-		}else if (opName.equals("getOcsp")){
+			sendCertUsrList(message, usr);
+		}else if (opName.equals("sendOcsp")){
 			String cert = operation.getChildNodes().item(0).getNodeValue();
-			getOcsp(message, cert);
+			sendOcsp(message, cert);
 		}else if (opName.equals("createNewCertificateSS")){
 			createNewCertificateSS(message);
 		}else if (opName.equals("createNewCertificate")){
@@ -130,18 +146,20 @@ public class CertificateAuthorityConn extends DBQuery{
 			String cert = operation.getChildNodes().item(0).getNodeValue();
 			//String reason = operation.getChildNodes().item(1).getNodeValue();
 			revokedCert(message, cert, 0);
-		}else if (opName.equals("getCrl")){
+		}else if (opName.equals("sendCrl")){
 			sendCRL();
 		}else if (opName.equals("insertNewUser")){
 			String usr = operation.getChildNodes().item(0).getNodeValue();
 			insertNewUser(usr);
+		}else if (opName.equals("sendCaPubKey")){
+			sendCaPubKey();
 		}
 	}
 		
 	//Operazioni
 	
 	//Invia la lista di utenti della CA
-	protected void getUsrList(String message){
+	protected void sendUsrList(String message){
 		try{
 			boolean b = checkDigest(convStringToXML(message));
 			if (b == true){
@@ -158,7 +176,7 @@ public class CertificateAuthorityConn extends DBQuery{
 		            usr.appendChild(doc.createTextNode(name));
 		            root.appendChild(usr);
 				}
-				send(root);
+				sendWithDigest(root);
 			}else{
 				operationError("");
 			}
@@ -169,7 +187,7 @@ public class CertificateAuthorityConn extends DBQuery{
 	}
 	
 	//Invia la lista dei certificati di un utente
-	protected void getCertUsrList(String message, String user){
+	protected void sendCertUsrList(String message, String user){
 		try{
 			boolean b = checkDigest(convStringToXML(message));
 			if (b == true){
@@ -183,12 +201,16 @@ public class CertificateAuthorityConn extends DBQuery{
 				while (rs.first()){
 					String serial = rs.getString(1);
 					String cert = rs.getString(2);
-					Element usr = doc.createElement("certUserList");
-					usr.setAttribute("serial", serial);
-		            usr.appendChild(doc.createTextNode(cert));
-		            root.appendChild(usr);
+					Date notBefore = convStringToDate(rs.getString(4));
+					Date now = getDate();
+					if (now.compareTo(notBefore) <= 0){
+						Element usr = doc.createElement("certUserList");
+						usr.setAttribute("serial", serial);
+						usr.appendChild(doc.createTextNode(cert));
+						root.appendChild(usr);
+					}
 				}
-				send(root);
+				sendWithDigest(root);
 			}else{
 				operationError("");
 			}
@@ -199,7 +221,7 @@ public class CertificateAuthorityConn extends DBQuery{
 	}
 	
 	//Invia i dettagli di un certificato da usare come OCSP
-	protected void getOcsp(String message, String serialCert){
+	protected void sendOcsp(String message, String serialCert){
 		try{
 			boolean b = checkDigest(convStringToXML(message));
 			if (b == true){
@@ -237,7 +259,7 @@ public class CertificateAuthorityConn extends DBQuery{
 	            Element subjectDNEl = doc.createElement("subjectDN");
 	            subjectDNEl.appendChild(doc.createTextNode(subjectDN));
 	            root.appendChild(subjectDNEl);
-	            send(root);
+	            sendWithDigest(root);
 			}else{
 				operationError("");
 			}
@@ -287,7 +309,7 @@ public class CertificateAuthorityConn extends DBQuery{
             Element stateEl = doc2.createElement("cert");
             stateEl.appendChild(doc2.createTextNode(convX509ToBase64(cert)));
             root.appendChild(stateEl);
-            send(root);
+            sendWithDigest(root);
 		}catch (Exception e){
 			System.out.println(e.getMessage());
 		}	
@@ -334,7 +356,7 @@ public class CertificateAuthorityConn extends DBQuery{
             Element stateEl = doc2.createElement("cert");
             stateEl.appendChild(doc2.createTextNode(convX509ToBase64(cert)));
             root.appendChild(stateEl);
-            send(root);
+            sendWithDigest(root);
 		}catch (Exception e){
 			System.out.println(e.getMessage());
 		}	
@@ -359,10 +381,10 @@ public class CertificateAuthorityConn extends DBQuery{
 				crlGen.setIssuerDN(getCACert().getSubjectX500Principal());
 				crlGen.setThisUpdate(getDate());
 				crlGen.setNextUpdate(getDate());
-				crlGen.setSignatureAlgorithm(CRLSIGNALG);
+				crlGen.setSignatureAlgorithm(CRL_SIGN_ALG);
 				crlGen.addCRLEntry(new BigInteger(cert), getDate(), CRLReason.privilegeWithdrawn);
 
-				send(root);
+				sendWithDigest(root);
 			}else{
 				operationError("");
 			}
@@ -405,6 +427,22 @@ public class CertificateAuthorityConn extends DBQuery{
 			Element response = doc.createElement("result");
 			response.appendChild(doc.createTextNode("OK"));
 		}catch(Exception e){
+			System.out.println(e.getMessage());
+		}
+	}
+	
+	//Invia la chiavu pubblica della CA
+	protected void sendCaPubKey(){
+		try{
+			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+			DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+			Document doc = docBuilder.newDocument();
+			//create the root element and add it to the document
+			Element root = doc.createElement("message");
+			root.setAttribute("operation", "getCaPubKey");
+			Element response = doc.createElement("key");
+			response.appendChild(doc.createTextNode(convPubKeyToBase64(getCaPubKey())));
+		}catch (Exception e){
 			System.out.println(e.getMessage());
 		}
 	}
@@ -519,7 +557,7 @@ public class CertificateAuthorityConn extends DBQuery{
 	//Genera la firma base64 di un messaggio
 	protected String createDigest(String data, PrivateKey kpriv){
 		try{
-			Signature s = Signature.getInstance(SIGNALG);
+			Signature s = Signature.getInstance(DIGEST_SIGN_ALG);
 			s.initSign(kpriv);
 			s.update(data.getBytes());
 			byte[] signature = s.sign();
@@ -536,7 +574,7 @@ public class CertificateAuthorityConn extends DBQuery{
 			String message = getMessage(doc);
 			String digest64 = getDigest64(doc);
 			String sender = getSender(doc);
-			Signature s = Signature.getInstance(SIGNALG);
+			Signature s = Signature.getInstance(DIGEST_SIGN_ALG);
 			s.update(message.getBytes());
 			boolean digestOK = false;
 			ResultSet certificates = getUserValidCert(sender);
