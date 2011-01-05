@@ -33,10 +33,10 @@ public class CertificateAuthority extends DBQueryCA {
 	private int port;
 	private PrivateKey caPrivateKey;
 	private PublicKey caPublicKey;
-	private String caDN = "FedeCA";
-	private final String GOOD = "good";
-	private final String REVOKED = "revoked";
-	private final String EXPIRED = "expired";
+	//private String caDN = "FedeCA";
+	//private final String GOOD = "good";
+	//private final String REVOKED = "revoked";
+	//private final String EXPIRED = "expired";
 	private final String CRLSIGNATUREALG = "Mettere l'algoritmo!!!!!";
 	private X509V2CRLGenerator crlGen;
 	
@@ -89,19 +89,19 @@ public class CertificateAuthority extends DBQueryCA {
 		KeyPair kp = createKeyPair(l);
 		caPrivateKey = kp.getPrivate();
 		caPublicKey = kp.getPublic();
-		Date notAfter = getDate();
+		//Date notAfter = getDate();
 		String notBefore = "2100/31/12";
 		String signatureAlgorithm = "RSA";
-		String state = "";
-		String issuerDN;
-		String subjectDN = issuerDN = caDN;
+		//String state = "";
+		//String issuerDN;
+		//String subjectDN = issuerDN = caDN;
 		
 		X509V1CertificateGenerator certGen = new X509V1CertificateGenerator();
 		X500Principal dnName = new X500Principal("CN=Test CA Certificate");
 		certGen.setSerialNumber(new BigInteger(0 + ""));
 		certGen.setIssuerDN(dnName);
-		certGen.setNotBefore(getDate());
-		certGen.setNotAfter(convStringToDate(notBefore));
+		certGen.setNotBefore(convStringToDate(notBefore));
+		certGen.setNotAfter(getDate());
 		certGen.setSubjectDN(dnName);                       // note: same as issuer
 		certGen.setPublicKey(caPublicKey);
 		certGen.setSignatureAlgorithm(signatureAlgorithm);
@@ -143,18 +143,20 @@ public class CertificateAuthority extends DBQueryCA {
 	}
 	
 	//Restituisce la data attuale nel formato Date
+	@SuppressWarnings("deprecation")
 	protected static Date getDate(){
 		GregorianCalendar gc = new GregorianCalendar();
 		int year = gc.get(Calendar.YEAR);
 		int month = gc.get(Calendar.MONTH);
 		int day = gc.get(Calendar.DAY_OF_MONTH);
-		int hrs = gc.get(Calendar.HOUR);
-		int min = gc.get(Calendar.MINUTE);
-		int sec = gc.get(Calendar.SECOND);
+		//int hrs = gc.get(Calendar.HOUR);
+		//int min = gc.get(Calendar.MINUTE);
+		//int sec = gc.get(Calendar.SECOND);
 		return new Date(year, month, day);
 	}
 	
 	//Converte unsa Stringa in formato gg/mm/aaaa in util.Date
+	@SuppressWarnings("deprecation")
 	protected Date convStringToDate(String s){
 		StringTokenizer token = new StringTokenizer(s, "/");
 		int day = Integer.parseInt(token.nextToken());
@@ -164,6 +166,7 @@ public class CertificateAuthority extends DBQueryCA {
 	}
 	
 	//Converte un Date in formato gg/mm/aaaa
+	@SuppressWarnings("deprecation")
 	protected String getStringDate(Date date){
 		String year = ("0" + date.getYear());
 		year = year.substring(year.length() - 4, year.length());
