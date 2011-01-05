@@ -20,9 +20,9 @@ public class DBQueryCA {
 	private String dbPath;
 	private Properties dbAccess;
 	private int lastSerial; //primo seriale non usato, viene salvato in una cella del DB
-	private final String GOOD = "good";
+	//private final String GOOD = "good";
 	private final String REVOKED = "revoked";
-	private final String EXPIRED = "expired";
+	//private final String EXPIRED = "expired";
 	
 	public DBQueryCA(String dbClassName, String dbPath, Properties dbAccess) throws SQLException {
 		this.dbClassName = dbClassName;
@@ -70,6 +70,7 @@ public class DBQueryCA {
 	}
 	
 	//Controlla se il seriale è già usato nel DB
+	@SuppressWarnings("unused")
 	private boolean serialAlreadyExist(String serialNumber) throws SQLException{
 		ResultSet rs = stm.executeQuery("SELECT * FROM tblUsrCert WHERE serialNumber = '" + serialNumber + "';");
 		return rs.first();
@@ -94,6 +95,11 @@ public class DBQueryCA {
 	//Restituisce tutti i certificati di un utente
 	protected ResultSet getUserCert(String user) throws SQLException{
 		return stm.executeQuery("SELECT cert, state, notAfter, notBefore, serialNumber, subjectDN FROM tblUsrCert WHERE issuerDN = '" + user + "';" );
+	}
+	
+	protected boolean searchUsr(String usr) throws SQLException{
+		ResultSet rs = stm.executeQuery("SELECT * FROM tblUsers WHERE subjectDN = '" + usr + "';");
+		return rs.first();
 	}
 	
 	/**
@@ -215,6 +221,7 @@ public class DBQueryCA {
 	}
 	
 	//Restituisce la data attuale nel formato Date
+	@SuppressWarnings("deprecation")
 	protected static Date getDate(){
 		GregorianCalendar gc = new GregorianCalendar();
 		int year = gc.get(Calendar.YEAR);
@@ -245,6 +252,7 @@ public class DBQueryCA {
 	}
 	
 	//Converte un Date in formato gg/mm/aaaa
+	@SuppressWarnings("deprecation")
 	protected String getStringDate(Date date){
 		String year = ("0" + date.getYear());
 		year = year.substring(year.length() - 4, year.length());
