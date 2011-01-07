@@ -1,5 +1,6 @@
-import java.util.*;
-import java.util.Date;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.math.BigInteger;
 import java.security.InvalidKeyException;
 import java.security.KeyFactory;
 import java.security.KeyPair;
@@ -8,6 +9,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.Security;
 import java.security.SignatureException;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateFactory;
@@ -15,9 +17,15 @@ import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
-import java.sql.*;
-import java.io.*;
-import java.math.BigInteger;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.Calendar;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.StringTokenizer;
 
 import javax.security.auth.x500.X500Principal;
 
@@ -25,10 +33,9 @@ import org.bouncycastle.util.encoders.Base64;
 import org.bouncycastle.x509.X509V1CertificateGenerator;
 import org.bouncycastle.x509.X509V2CRLGenerator;
 
-public class CertificateAuthority extends DBQueryCA {
+public class CertificateAuthority{
 	
 	private String dbClassName;
-	private Properties dbAccess;
 	private String dbPath;
 	private int port;
 	private PrivateKey caPrivateKey;
@@ -37,39 +44,56 @@ public class CertificateAuthority extends DBQueryCA {
 	//private final String GOOD = "good";
 	//private final String REVOKED = "revoked";
 	//private final String EXPIRED = "expired";
-	private final String CRLSIGNATUREALG = "Mettere l'algoritmo!!!!!";
+	private final String CRL_SIGNATURE_ALG = "MD2withRSA";
 	private X509V2CRLGenerator crlGen;
+	private Connection conn;
+	//private int lastSerial; //primo seriale non usato, viene salvato in una cella del DB
+	//private final String GOOD = "good";
+	//private final String REVOKED = "revoked";
+	//private final String EXPIRED = "expired";
 	
 	//Costruttore, crea connessione e statement per query al DB
-	public CertificateAuthority(String dbClassName, String dbPath, int clientConnPort, Properties dbAccess) throws SQLException, ClassNotFoundException, IOException, NoSuchAlgorithmException, InvalidKeySpecException{
-		super(dbClassName, dbPath, dbAccess);
+	public CertificateAuthority(String dbClassName, String dbPath, int port) throws SQLException, ClassNotFoundException, IOException, NoSuchAlgorithmException, InvalidKeySpecException, CertificateEncodingException, InvalidKeyException, IllegalStateException, NoSuchProviderException, SignatureException{
+		Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider ());
 		this.dbPath = dbPath;
-		this.dbAccess = dbAccess;
 		this.crlGen = new X509V2CRLGenerator();
-		crlGen.setSignatureAlgorithm(CRLSIGNATUREALG);
-		//String driver = "jdbc:sqlite:";
-		//String dbpath = "jdbc:sqlite:./DataBase/test.db";
+		this.dbClassName = dbClassName;
+		this.dbPath = dbPath;
+		this.port = port;
+		Class.forName("org.sqlite.JDBC"); 
+		//this.conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		System.out.println(dbClassName);
+		System.out.println(dbPath);
+		System.out.println(this.dbClassName + this.dbPath);
+		Class.forName("org.sqlite.JDBC"); 
+		crlGen.setSignatureAlgorithm(CRL_SIGNATURE_ALG);
+		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 	    ckeckCAKey();
-	    lunchThrConn(this);
+	    conn.close();
+	    lunchThrConn();
 	}
 	
 	//Avvia il thread per ascoltare le richieste di connessione
-	private void lunchThrConn(CertificateAuthority ca) throws IOException{
-		ConnectionThread connThr = new ConnectionThread(dbClassName, dbPath, port, dbAccess, crlGen);
-		connThr.run();
+	private void lunchThrConn() throws IOException{
+		ServerCA connThr = new ServerCA(dbClassName, dbPath, port, crlGen);
+		connThr.start();
 	}
 	
 	//Controlla se la CA dispone già di una propria coppia di chiavi controllando il DB
-	private void ckeckCAKey() throws SQLException, NoSuchAlgorithmException, InvalidKeySpecException{
+	private void ckeckCAKey() throws SQLException, NoSuchAlgorithmException, InvalidKeySpecException, CertificateEncodingException, InvalidKeyException, IllegalStateException, NoSuchProviderException, SignatureException{
 		try{
 			ResultSet rs = getCAKeyFromDB();
-			if (!rs.first()){
+			if (!rs.next()){
+				System.out.println("entrato1");
 				int l=1028;
 				createCAKey(l);
 			}else{
+				System.out.println("entrato2");
 				getCAKeyFromDB();
 			}
 		}catch (Exception e){
+			System.out.println(e);
+
 			System.out.println(e.getMessage());
 		}
 	}
@@ -85,29 +109,34 @@ public class CertificateAuthority extends DBQueryCA {
 	}
 	
 	//Crea le chiavi della CA e le inserisce nel DB
-	private void createCAKey(int l) throws NoSuchAlgorithmException, SQLException, CertificateEncodingException, InvalidKeyException, IllegalStateException, NoSuchProviderException, SignatureException{
+	private void createCAKey(int l) throws NoSuchAlgorithmException, SQLException, CertificateEncodingException, InvalidKeyException, IllegalStateException, NoSuchProviderException, SignatureException, InvalidKeySpecException{
 		KeyPair kp = createKeyPair(l);
 		caPrivateKey = kp.getPrivate();
 		caPublicKey = kp.getPublic();
 		//Date notAfter = getDate();
 		String notBefore = "2100/31/12";
-		String signatureAlgorithm = "RSA";
+		String signatureAlgorithm = "MD2withRSA";
 		//String state = "";
 		//String issuerDN;
 		//String subjectDN = issuerDN = caDN;
 		
 		X509V1CertificateGenerator certGen = new X509V1CertificateGenerator();
 		X500Principal dnName = new X500Principal("CN=Test CA Certificate");
-		certGen.setSerialNumber(new BigInteger(0 + ""));
+		certGen.setSerialNumber(new BigInteger(1 + ""));
 		certGen.setIssuerDN(dnName);
 		certGen.setNotBefore(convStringToDate(notBefore));
 		certGen.setNotAfter(getDate());
 		certGen.setSubjectDN(dnName);                       // note: same as issuer
 		certGen.setPublicKey(caPublicKey);
 		certGen.setSignatureAlgorithm(signatureAlgorithm);
-
+		System.out.println("faccio i test");
 		X509Certificate cert = certGen.generate(caPrivateKey, "BC");
-		insertCACert(0 + "", convX509ToBase64(cert), convPrivKeyToBase64(caPrivateKey), convPubKeyToBase64(caPublicKey));
+		String privK64 = convPrivKeyToBase64(caPrivateKey);
+		String pubK64 = convPubKeyToBase64(caPublicKey);
+		PrivateKey p1 = convBase64ToPrivKey(privK64);
+		System.out.println(privK64);
+		
+		insertCACert(1 + "", privK64, pubK64, convX509ToBase64(cert));
 	}
 	
 	//Converte una stringa Base64 in una chiave pubblica
@@ -218,6 +247,24 @@ public class CertificateAuthority extends DBQueryCA {
 			System.out.println(e.getMessage());
 			return null;
 		}
+	}
+	
+	//Query
+	
+	//Restituisce i certificati della CA
+	protected ResultSet getCAKeyFromDB() throws SQLException, NoSuchAlgorithmException, InvalidKeySpecException{
+	    Statement stm = conn.createStatement();
+		ResultSet rs = stm.executeQuery("SELECT privateKey, publicKey, cert FROM tblCACert;");	
+		return rs;
+	}
+	
+	//Inserisce un nuovo record nei certifiati della CA
+	protected void insertCACert(String serial, String privKey, String pubKey, String cert) throws SQLException{
+		Connection conn1 = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+	    Statement stm = conn1.createStatement();
+		stm.executeUpdate("INSERT INTO tblCACert (serialNumber, privateKey, publicKey, cert) VALUES ('" + serial + "', '" + privKey + "', '" + pubKey + "', '" + cert + "');");
+		stm.close();
+		conn1.close();
 	}
 	
 }

@@ -24,11 +24,14 @@ public class DBQueryCA {
 	private final String REVOKED = "revoked";
 	//private final String EXPIRED = "expired";
 	
-	public DBQueryCA(String dbClassName, String dbPath, Properties dbAccess) throws SQLException {
+	public DBQueryCA(String dbClassName, String dbPath) throws SQLException, ClassNotFoundException {
 		this.dbClassName = dbClassName;
 		this.dbPath = dbPath;
-		this.dbAccess = dbAccess;
-		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath, this.dbAccess));
+		System.out.println(dbClassName);
+		System.out.println(dbPath);
+		System.out.println(this.dbClassName + this.dbPath);
+		Class.forName("org.sqlite.JDBC"); 
+		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 	    stm = conn.createStatement();
 	}
 	
@@ -48,7 +51,7 @@ public class DBQueryCA {
 		if (rs.first()){
 			stm.executeUpdate("UPDATE tblSeriale SET serial = " + newSerial + ";");
 		}else{
-			stm.executeUpdate("INSERT INTO tblSeriale VALUES (1);");
+			stm.executeUpdate("INSERT INTO tblSeriale VALUES (2);");
 		}
 	}
 	
@@ -123,12 +126,12 @@ public class DBQueryCA {
 	
 	//Restituisce i certificati della CA
 	protected ResultSet getCAKeyFromDB() throws SQLException, NoSuchAlgorithmException, InvalidKeySpecException{
-		return stm.executeQuery("SELECT privateKey, publicKey, cert FROM tblCACert");	
+		return stm.executeQuery("SELECT privateKey, publicKey, cert FROM tblCACert;");	
 	}
 	
 	//Inserisce un nuovo record nei certifiati della CA
 	protected void insertCACert(String serial, String privKey, String pubKey, String cert) throws SQLException{
-		stm.executeUpdate("INSERT INTO tblCACert (serialNumber, privateKey, publicKey, cert) VALUES + '" + serial + "', '" + privKey + ", '" + pubKey + "', '" + cert + "';");
+		stm.executeUpdate("INSERT INTO tblCACert (serialNumber, privateKey, publicKey, cert) VALUES ('" + serial + "', '" + privKey + "', '" + pubKey + "', '" + cert + "');");
 	}
 	
 	/**
