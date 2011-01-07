@@ -3,7 +3,6 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Properties;
 
 
 public class DBQueryClient {
@@ -12,17 +11,16 @@ public class DBQueryClient {
 	private Connection conn;
 	private String dbClassName;
 	private String dbPath;
-	private Properties dbAccess;
 	//private int fistFreeSerial; //primo seriale non usato, viene salvato in una cella del DB
 	//private final String GOOD = "good";
 	//private final String REVOKED = "revoked";
 	//private final String EXPIRED = "expired";
 	
-	public DBQueryClient(String dbClassName, String dbPath, Properties dbAccess) throws SQLException {
+	public DBQueryClient(String dbClassName, String dbPath) throws SQLException, ClassNotFoundException {
+		Class.forName("org.sqlite.JDBC"); 
 		this.dbClassName = dbClassName;
 		this.dbPath = dbPath;
-		this.dbAccess = dbAccess;
-		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath, this.dbAccess));
+		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 	    stm = conn.createStatement();
 	}
 	
@@ -47,19 +45,22 @@ public class DBQueryClient {
 	}
 	
 	//Metodo che inizializza il db
-	protected void inzializeDb() throws SQLException{
-		stm.executeUpdate("CREATE TABLE tblUrs (password TEXT, username TEXT);");
-		stm.executeUpdate("CREATE TABLE tblUsrCert (cert TEXT, privateKey TEXT, publicKey TEXT, serialNumber TEXT);");
+	protected void inizializeDb() throws SQLException{
+		stm.executeUpdate("DROP TABLE IF EXISTS tblUsrCert;");
+		stm.executeUpdate("DROP TABLE IF EXISTS tblUsr;");
+		stm.executeUpdate("CREATE TABLE IF NOT EXISTS tblUsrCert (cert TEXT, privateKey TEXT, publicKey TEXT, serialNumber TEXT);");
+		stm.executeUpdate("CREATE TABLE IF NOT EXISTS tblUsr (password TEXT, subjectDN TEXT);");
+		stm.executeUpdate("CREATE TABLE IF NOT EXISTS tblUsrCert (cert TEXT, privateKey TEXT, publicKey TEXT, serialNumber TEXT);");
 	}
 	
 	//Metodo che inserisce l'utente nel db
 	protected void insertUser(String user, String password) throws SQLException{
-		stm.executeUpdate("INSERT INTO tblUsr (subjectDN, password) VALUES '" + user + "', '" + password + "';");
+		stm.executeUpdate("INSERT INTO tblUsr (subjectDN, password) VALUES ('" + user + "', '" + password + "');");
 	}
 	
 	//Metodo che restituisce le credenziali di accesso
 	protected ResultSet getLogin() throws SQLException{
-		return stm.executeQuery("SELECT * FROM tblUrs");
+		return stm.executeQuery("SELECT subjectDN, password FROM tblUsr");
 	}
 }
 	

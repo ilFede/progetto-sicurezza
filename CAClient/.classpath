@@ -17,5 +17,6 @@
 	<classpathentry kind="lib" path="gallery-0.5.2.jar" sourcepath="gallery-0.5.2-src.zip"/>
 	<classpathentry kind="lib" path="ctabletree.jar"/>
 	<classpathentry kind="lib" path="pshelf-1.0.0.jar" sourcepath="pshelf-1.0.0-src.zip"/>
+	<classpathentry kind="lib" path="/home/federico/Librerie/Librerie Java/sqlitejdbc-v056.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

@@ -28,7 +28,7 @@ public class UserProfile {
 			Document doc = db.parse(file);
 			//doc.getDocumentElement().normalize();
 			commonName = doc.getElementsByTagName("commonName").item(0).getChildNodes().item(0).getNodeValue();
-			organization = doc.getElementsByTagName("organization").item(0).getChildNodes().item(0).getNodeValue();
+			organization = doc.getElementsByTagName("organization").item(0).getChildNodes().item(0).getTextContent();
 			mail = doc.getElementsByTagName("mail").item(0).getChildNodes().item(0).getNodeValue();
 			organizationUnit = doc.getElementsByTagName("organizationUnit").item(0).getChildNodes().item(0).getNodeValue();
 			locality = doc.getElementsByTagName("locality").item(0).getChildNodes().item(0).getNodeValue();

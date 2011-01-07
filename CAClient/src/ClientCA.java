@@ -12,9 +12,12 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
+import java.sql.Connection;
 import java.sql.Date;
+import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.math.BigInteger;
 import java.security.*;
 
@@ -42,36 +45,54 @@ import java.util.ArrayList;
 import java.util.Properties;
 import java.util.StringTokenizer;
 
-public class ClientCA extends DBQueryClient{
+public class ClientCA{
 	protected static int num;
 	protected int id;
-	protected Socket conn;
+	protected Socket clientConn;
 	protected BufferedReader in;
 	protected BufferedWriter out;
 	protected String user;
 	protected PublicKey caPubKey;
-	protected final String DIGEST_SIGN_ALG = "DSA";
+	protected MessageWindows window;
+	protected final String DIGEST_SIGN_ALG = "MD2withRSA";
 	protected final String GOOD = "good";
 	protected final String REVOKED = "revoked";
 	protected final String EXPIRED = "expired";
 	protected final String CANAME = "FedeCA";
 	protected final String CRL_SIGN_ALG = "MD2withRSA";
-	protected final String OP_FAIL = "fail";
+	protected final String OP_FAIL = "false";
+	
+	private Statement stm;
+	private Connection conn;
+	private String dbClassName;
+	private String dbPath;
+	private String username;
+	
 	
 	//Costruttore
-	public ClientCA(String dbClassName, String dbPath, Properties dbAccess, Socket conn) throws SQLException{
-		super(dbClassName, dbPath, dbAccess);
+	public ClientCA(String username, String dbClassName, String dbPath, Socket clientConn, PublicKey caPk) throws SQLException, ClassNotFoundException{
+		Class.forName("org.sqlite.JDBC"); 
+		this.username = username;
+		this.dbClassName = dbClassName;
+		this.dbPath = dbPath;
+		this.caPubKey=caPk;
+		
+		caPubKey = caPk;
 		try{
-			in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-			out = new BufferedWriter(new OutputStreamWriter(conn.getOutputStream()));	
-			caPubKey = recieveCaPubKey();
+			in = new BufferedReader(new InputStreamReader(clientConn.getInputStream()));
+			out = new BufferedWriter(new OutputStreamWriter(clientConn.getOutputStream()));	
 		}catch (Exception e){
 			System.out.println(e.getMessage());
 		}
 		id = num;
 		num+=1; 
+		window = new MessageWindows("Client " + id);
+		System.out.println("Ci sosdad");
+		window.open();
+		window.write("ciao");
 		System.out.println("Il numero è: " + num);
-		String user = getUsername().getString(1);
+		
+		//String user = getUsername().getString(1);
 	}
 	
 	//Metodi per la comunicazione col server
@@ -79,7 +100,11 @@ public class ClientCA extends DBQueryClient{
 	//Riceve un messaggio
 	protected void recieve(){
 		try{
-			String document = in.readLine();
+			String document = "";
+	        while(in.ready()){
+	        	document = document + "\n" + in.readLine();
+	        }
+	        window.write("Messaggio rievuto:\n" + document + "\n-------------------------------");
 			//decideOperation(document);
 		}catch (Exception e){
 			System.out.println(e.getMessage());
@@ -92,7 +117,8 @@ public class ClientCA extends DBQueryClient{
 			String xmlString = convXMLToString(elem);
 			PrivateKey key = privKey;
 			String digest = createDigest(xmlString, key);
-			String message = "<document>/n" + convXMLToString(elem) + "<digest>" + digest + "</digest>/n</document>";
+			String message = "<document sender="+ username +">\n" + convXMLToString(elem) + "<digest>\n" + digest + "\n</digest>\n</document>";
+	        window.write("Messaggio inviato:\n" + message + "\n-------------------------------");
 			out.write(message);
 		}catch (Exception e){
 			System.out.println(e.getMessage());
@@ -103,8 +129,10 @@ public class ClientCA extends DBQueryClient{
 	protected void sendWithoutDigest(Element elem){
 		try{
 			String xmlString = convXMLToString(elem);
-			String message = "<document>/n" + convXMLToString(elem) + "/n</document>";
+			String message = "<document sender="+ username +">\n" + convXMLToString(elem) + "\n</document>\n";
+	        window.write("Messaggio inviato:\n" + message + "\n-------------------------------");
 			out.write(message);
+			//out.flush();
 		}catch (Exception e){
 			System.out.println(e.getMessage());
 		}
@@ -186,6 +214,60 @@ public class ClientCA extends DBQueryClient{
 		}
 	}
 	
+	protected boolean renewsCertificate(String certificateSerial, String newNotBefore, String serialPk, int l){
+		try{
+			KeyPair chiavi = createKeyPair(l);
+			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+			DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+			Document doc = docBuilder.newDocument();
+			//create the root element and add it to the document
+			Element root = doc.createElement("message");
+			root.setAttribute("operation", "renewsCertificate");
+			Element e1 = doc.createElement("serial");
+            e1.appendChild(doc.createTextNode(serialPk));
+            Element e2 = doc.createElement("newNotBefore");
+            e2.appendChild(doc.createTextNode(newNotBefore));
+            Element e3 = doc.createElement("publicKey");
+            e3.appendChild(doc.createTextNode(convPubKeyToBase64(chiavi.getPublic())));
+            root.appendChild(e1);
+            root.appendChild(e2);
+            root.appendChild(e3);
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+			ResultSet rs = getPrivKeyToDB(serialPk);
+			String privKeyToDigest = rs.getString(1);
+			PrivateKey keyDigest = convStringToPrivKey(privKeyToDigest);
+			conn.close();
+			sendWithDigest(root, keyDigest);
+			
+			String messaggio = in.readLine();
+	        while(in.ready()){
+	        	messaggio = messaggio + "\n" + in.readLine();
+	        }
+	        
+			Document response = convStringToXml(messaggio);
+			boolean digestOk = checkDigest(response);
+			if (digestOk == true){			
+				String serial = (response.getElementsByTagName("serial").item(0)).getNodeValue();
+				String cert = (response.getElementsByTagName("cert").item(0)).getNodeValue();
+				conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+				stm = conn.createStatement();
+				deleteUsrCert(serial);
+				conn.close();
+			    stm = conn.createStatement();
+				insertUsrCert(serial, convPrivKeyToBase64(chiavi.getPrivate()), convPubKeyToBase64(chiavi.getPublic()), cert);
+				conn.close();
+				return true;
+			}else{
+				System.out.println("firma non valida");
+				return false;
+			}
+		}catch(Exception e){
+			System.out.println(e.getMessage());
+		    return false;
+		}
+		
+	}
+	
 	//Riceve l'ocsp di un certificato
 	protected ArrayList<String> recieveOcsp(String serial){
 		try{
@@ -217,7 +299,7 @@ public class ClientCA extends DBQueryClient{
 	}
 	
 	//Richeide un nuovo certificato autofirmato
-	protected void certificateSSRequest(String notAfter, String notBefore, String subjectDN, String signatureAlg, String organizationUnit, int l){
+	protected boolean certificateSSRequest(String notAfter, String notBefore, String subjectDN, String signatureAlg, String organizationUnit, int l){
 		try{
 			KeyPair kp = createKeyPair(l);
 			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
@@ -252,17 +334,23 @@ public class ClientCA extends DBQueryClient{
 			if (digestOk == true){			
 				String serial = (response.getElementsByTagName("serial").item(0)).getNodeValue();
 				String cert = (response.getElementsByTagName("cert").item(0)).getNodeValue();
+				conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+			    stm = conn.createStatement();
 				insertUsrCert(serial, convPrivKeyToBase64(kp.getPrivate()), convPubKeyToBase64(kp.getPublic()), cert);
+				conn.close();
+				return true;
 			}else{
 				System.out.println("firma non valida");
+				return false;
 			}
 		}catch(Exception e){
 			System.out.println(e.getMessage());
+		    return false;
 		}
 	}
 	
 	//Richeide un nuovo certificato autofirmato
-	protected void certificateRequest(String notAfter, String notBefore, String subjectDN, String signatureAlg, String organizationUnit, int l, String pkserial){
+	protected boolean certificateRequest(String notAfter, String notBefore, String subjectDN, String signatureAlg, String organizationUnit, int l, String pkserial){
 		try{
 			KeyPair kp = createKeyPair(l);
 			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
@@ -303,8 +391,10 @@ public class ClientCA extends DBQueryClient{
 			}else{
 				System.out.println("firma non valida");
 			}
+			return true;
 		}catch(Exception e){
 			System.out.println(e.getMessage());
+			return false;
 		}
 	}
 	
@@ -355,7 +445,7 @@ public class ClientCA extends DBQueryClient{
 	public void closeConnection() throws IOException{
 		in.close();
 		out.close();
-		conn.close();
+		clientConn.close();
 	}
 	
 	public void send (String s) throws IOException{
@@ -371,7 +461,7 @@ public class ClientCA extends DBQueryClient{
 	private KeyPair createKeyPair(int l) throws NoSuchAlgorithmException{
 		//inizializza un generatore di coppie di chiavi usando RSA
         KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
-        kpg.initialize(l);
+        kpg.initialize(l, new SecureRandom( ));
         // genera la coppia
         KeyPair kp = kpg.generateKeyPair();
         return kp;
@@ -663,4 +753,55 @@ public class ClientCA extends DBQueryClient{
 		client.closeConnection();
 		
 	}*/
+	
+	//Query
+	
+	//Restituisce il nome dell'utente
+	protected ResultSet getUsername() throws SQLException{
+		return stm.executeQuery("SELECT username FROM tblUsr;");
+	}
+	
+	//Restituisce la password dell'utente
+	protected ResultSet getPassword() throws SQLException{
+		return stm.executeQuery("SELECT password FROM tblUsr;");
+	}
+	
+	//Restituisce la chiave privata di un cxertificato
+	protected ResultSet getPrivKeyToDB(String serial) throws SQLException{
+		return stm.executeQuery("SELECT privateKey FROM tblUsrCert WHERE serial = '" + serial + "';");
+	}
+	
+	//Inserisce un nuovo certificato nel DB
+	protected void insertUsrCert(String serial, String pubKey, String privKey, String cert) throws SQLException{
+		stm.executeUpdate("INSERT INTO tblUsrCert(serialNumber, publicKey, privateKey) VALUES '" + serial + "', '" + pubKey + "', '" + privKey + "', '" + cert + "';");
+	}
+	
+	//Metodo che inizializza il db
+	protected void inizializeDb() throws SQLException{
+		stm.executeUpdate("DROP TABLE IF EXISTS tblUsrCert;");
+		stm.executeUpdate("DROP TABLE IF EXISTS tblUsr;");
+		stm.executeUpdate("CREATE TABLE IF NOT EXISTS tblUsrCert (cert TEXT, privateKey TEXT, publicKey TEXT, serialNumber TEXT);");
+		stm.executeUpdate("CREATE TABLE IF NOT EXISTS tblUsr (password TEXT, subjectDN TEXT);");
+		stm.executeUpdate("CREATE TABLE IF NOT EXISTS tblUsrCert (cert TEXT, privateKey TEXT, publicKey TEXT, serialNumber TEXT);");
+	}
+	
+	//Metodo che inserisce l'utente nel db
+	protected void insertUser(String user, String password) throws SQLException{
+		stm.executeUpdate("INSERT INTO tblUsr (subjectDN, password) VALUES ('" + user + "', '" + password + "');");
+	}
+	
+	//Metodo che restituisce le credenziali di accesso
+	protected ResultSet getLogin() throws SQLException{
+		return stm.executeQuery("SELECT subjectDN, password FROM tblUsr");
+	}
+	
+	//Metodo che restituisce un certificato di un utente
+	protected ResultSet getUsrCert(String serial) throws SQLException{
+		return stm.executeQuery("SELECT cert FROM tblUsrCert WHERE serialNumber = '" + serial + "';");
+	}
+	
+	//Elimina un certificato
+	protected void deleteUsrCert(String serial) throws SQLException{
+		stm.executeQuery("DELETE FROM tblUsrCert WHERE serialNumber = '" + serial + "';");
+	}
 }
