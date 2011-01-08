@@ -146,28 +146,28 @@ public class Prove {
 		}
 	
 	   private static void provaChiavi() throws NoSuchAlgorithmException, InvalidKeySpecException{
-		   	//inizializza un generatore di coppie di chiavi usando RSA
+		   /**	//inizializza un generatore di coppie di chiavi usando RSA
 	        KeyPairGenerator kpg = KeyPairGenerator.getInstance("RSA");
 	        kpg.initialize(512);
 	        // genera la coppia
 	        KeyPair kp = kpg.generateKeyPair();
 	        PrivateKey kpr = kp.getPrivate();
 	        String codifica =  CertificateAuthority.convPrivKeyToBase64(kpr);
-	        codifica = "MIICeQIBADANBgkqhkiG9w0BAQEFAASCAmMwggJfAgEAAoGBCLat8/esavUC1ed2jNzUqTvDSvb6L7bUWTXuDZwZ4XAChjn/cXRgaoriHMRGo9ZH6GYOda1J7FqlXupW4+424Bmjmy1wDOBzcmlPTnK0scHvaaHFob8s4d4EsbArh1hHJpYgKW5oZxB6oiL91Ozhzfaps+y4R31sLUSeZ6/j4hMPAgMBAAECgYEH7NckWTTphvTQRpiNn+CQF7oVObLtqNVUWnesyzjC0RSKrr+FmjqDTNRBI8e4BhIa7o/iOf1NSli0jmD/KE+i2E0ltn3woltVcjdodGk6EtCgkmqPDooH3NA/+jw69dByfX8BQcVbpnzb460Q55+EhETeyy6JsRr2ntSBsg/UcnkCQQOzEmPWNiKGJ9ACS4xsUfNst8EmbDn4yCGdpBp5a+2bP2KZB+t5F0reI5dYzcG/gCaCEuBjl/SYgRo7QKfxDUZlAkECWvfK2ipwCV8jc8PDMyszFCu84mP7JIAGm4pqTfOajW0KUTB2bhVpG5axXbTC4VlNd3x9mbHtn3hua7AyI23SYwJBA24y2FcTndHu6wily5HKMEKY5kddxif2VI2cVVxQg2UZUrF60ZRYz/jK4hXbvhR4nbyyClbv2kTsOknFe7WfzK0CQQGysTeF5thUeUkmuTftmLQ/U3TdxXSWENIyqiwPPJLsaHLqq0SGAlt/Lzl5M8rXCTmG7bHi7to/gGQisKjEz/S/AkEBj2ohap4k/Xmq8Z7qawxvIMwOXzPGXKsVLxciDuipg/Cg4U6qIFMTwaWSRhD6Vm0YfXpG6Lfu337AQdZLuVK16w==";
+	        codifica = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCs6116nfqZ5rCMpIEIy1qSss3QWyC3mxzejxAssbiRpMOjlX6Dp2J8HU5KOmIaGZ1RJEdZwRHtXTbJhomXFh3Ke8hqUDoFP3MYNg6PxMSOsYV7ixKaNTe9T0dSUkRea8DHg19yoOJ2HIxylrYq3qtj+U7FKbU+xbqdfZmhGdjX+wIDAQAB";
 	        System.out.println("Chiave: " + codifica);
 	        PrivateKey kpr2 = CertificateAuthority.convBase64ToPrivKey(codifica);
 	        String codifica2 = CertificateAuthority.convPrivKeyToBase64(kpr2);
 	        codifica2="MO+/vQHvv70w77+9ARgCAQEwDQYJKu+/vUjvv73vv70NAQECBQAwHjEcMBoGA1UEAxMTVGVzdCBDQSBDZXJ0aWZpY2F0ZTAiGA8xOTIwMDQyOTIyMDAwMFoYDzM5MTEwMTA1MjMwMDAwWjAeMRwwGgYDVQQDExNUZXN0IENBIENlcnRpZmljYXRlMO+/ve+/vTANBgkq77+9SO+/ve+/vQ0BAQEFAAPvv73vv70AMO+/ve+/vQLvv73vv70Ib05MCDk877+977+9PiVa77+9Fu+/ve+/vWLvv71qXSjvv73vv73vv73vv73vv73vv73vv71o77+9Wjp+UO+/ve+/vcuxfe+/vRHvv73vv73vv73vv73vv71w77+9QDzvv70v77+9Pwx3fe+/vRkL77+9DBfvv70c77+977+9D++/ve+/vVdNBSPchHvvv73Sju+/ve+/ve+/vSxp77+9bwzvv73vv70ffu+/vRDvv71KaO+/ve+/vX3vv70N77+977+9K0Tvv71hCO+/vRbvv70aN++/vUzvv73duhUpAO+/ve+/vQIDAQABMA0GCSrvv71I77+977+9DQEBAgUAA++/ve+/vQAAHe+/ve+/ve+/ve+/ve+/vWXvv70x77+977+9W1dC77+9Q++/vVEtawTvv70QC1Xvv73vv73vv70tDB/vv73vv70GU++/ve+/ve+/vTAA15vvv70y77+977+9YgM677+9chrvv73vv73Jsu+/ve+/ve+/vSnvv73vv73vv71fQG3vv73vv73vv70b77+9au+/vW7vv73vv73vv71pau+/vX5NOu+/ve+/vVc4RQVy77+9Pznvv71G77+977+977+977+9d++/vWVKKRgx77+9e23vv73vv73vv709KnNoaVDvv73vv70T77+9C++/ve+/vWzvv70=";
 	        System.out.println("Chiave: " + codifica2);
 	        System.out.println("Chiavi uguali:" + codifica.equals(codifica2));
-	        PublicKey kpp = kp.getPublic();
-	        codifica =  CertificateAuthority.convPubKeyToBase64(kpp);
+	        PublicKey kpp = kp.getPublic();*/
+	        String codifica = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCRufSfY7yxqQvTHAYcsg+GtbfDWZB3OmL9md+zwc09hIjCcxDIIQ6omjrcGjLU/dfkbWOBtr9FeSVXcj080eDlYLqG2lF55i9Y6Xu0toMnWQXE1Oz6y7cWVw4ePQ1zNpNr7yx8DobuJeaw80iVgDrU0YoKwfVbXgnKF0a+UJnP1QIDAQAB";
+	                          
 	        System.out.println("Chiave: " + codifica);
 	        PublicKey kpp2 = CertificateAuthority.convBase64ToPubKey(codifica);
-	        codifica2 = CertificateAuthority.convPubKeyToBase64(kpp2);
-	        System.out.println("Chiave: " + codifica2);
-	        System.out.println("Chiavi uguali:" + codifica.equals(codifica2));
-	        
+	        /**codifica2 = CertificateAuthority.convPubKeyToBase64(kpp2);
+	        System.out.println("Chiave: " + codifica2);*/
+	        System.out.println("Fatto");
 	        
 	        
 	        

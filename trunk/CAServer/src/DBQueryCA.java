@@ -34,7 +34,7 @@ public class DBQueryCA {
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 	    stm = conn.createStatement();
 	}
-	
+	/**
 	//Ottiene l'ultimo seriale usato dalla tabella del DB
 	protected void getSerialToDB() throws SQLException{
 		ResultSet rs = stm.executeQuery("SELECT * FROM tblSeriale");
@@ -105,24 +105,7 @@ public class DBQueryCA {
 		return rs.first();
 	}
 	
-	/**
-	//Restituisce la data attuale nel forato AAAA/M/GG HH:MM:SS
-	private static String getDate(){
-		GregorianCalendar gc = new GregorianCalendar();
-		String year = ("0" + gc.get(Calendar.YEAR));
-		year = year.substring(year.length() - 4, year.length());
-		String month = ("0" + gc.get(Calendar.MONTH));
-		month = month.substring(month.length() - 2, month.length());
-		String day = ("0" + gc.get(Calendar.DAY_OF_MONTH));
-		day = day.substring(day.length() - 2, day.length());
-		String hour = ("0" + gc.get(Calendar.HOUR));
-		hour = hour.substring(hour.length() - 2, hour.length());
-		String minute = ("0" + gc.get(Calendar.MINUTE));
-		minute = minute.substring(minute.length() - 2, minute.length());
-		String second = ("0" + gc.get(Calendar.SECOND));
-		second = second.substring(second.length() - 2, second.length());
-		return year + "/" + month + "/" + day + " " + hour + ":" + minute + ":" + second + ":00";
-	}*/
+	
 	
 	//Restituisce i certificati della CA
 	protected ResultSet getCAKeyFromDB() throws SQLException, NoSuchAlgorithmException, InvalidKeySpecException{
@@ -134,24 +117,6 @@ public class DBQueryCA {
 		stm.executeUpdate("INSERT INTO tblCACert (serialNumber, privateKey, publicKey, cert) VALUES ('" + serial + "', '" + privKey + "', '" + pubKey + "', '" + cert + "');");
 	}
 	
-	/**
-	//Inserisce un nuovo record nei certifiati della CA
-	protected void insertCACert(String issuerDN, String notAfter, String notBefore, String privateKey, String publicKey, String signatureAlgorithm, String subjectDN, String state) throws SQLException{
-		String serialNumber = getSerial() + "";
-		PreparedStatement ps=conn.prepareStatement( "INSERT INTO tblCACert (issuerDN, notAfter, notBefore, privateKey, publicKey, serialNumber, signatureAlgorithm, subjectDN, state)" +
-				                                    "VALUES ?, ?, ?, ?, ?, ?, ?, ?, ?;");
-		ps.setString(1, issuerDN);
-		ps.setString(2, notAfter);
-		ps.setString(3, notBefore);
-		ps.setString(4, privateKey);
-		ps.setString(5, publicKey);
-		ps.setString(6, serialNumber);
-		ps.setString(7, signatureAlgorithm);
-		ps.setString(8, subjectDN);
-		ps.setString(9, state);
-		ps.executeUpdate();	
-		incSerial();
-	}*/
 	
 	//Restituisce un certificato
 	protected ResultSet getUsrCert(String serial) throws SQLException{
@@ -205,13 +170,7 @@ public class DBQueryCA {
 		return result.getString(0);
 	}
 	
-	/**
-	//Inserisce un nuovo utente, da ricontrollare per uniformarlo al DB
-	protected void insertUser(String commonName, String organization, String email, String organizationUnit, String locality, String state, String country) throws SQLException{
-		stm.executeQuery("INSERT INTO user (user.commonName, user.organization, user.email, user.organizationUnit, user.locality, user.state, user.country) VALUES ('" + commonName + "','" + organization + "','" + organizationUnit + "','" + locality + "','" + state + "','" + country + "');");
-		
-	}
-	*/
+	
 	
 	//Inserisce un nuovo utente nel DB
 	protected boolean insertUser(String subjectDN) throws SQLException{
@@ -265,6 +224,6 @@ public class DBQueryCA {
 		day = day.substring(day.length() - 2, day.length());
 		return day + "/" + month + "/" + year;
 	}
-	
+	*/
 	
 }

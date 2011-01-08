@@ -81,11 +81,11 @@ public class ServerCAConn extends Thread{
 	protected final String CANAME = "FedeCA";
 	protected final String CRL_SIGN_ALG = "MD2withRSA";
 	protected final String OP_FAIL = "fail";
+	protected final String organizationOID = X509Extensions.IssuerAlternativeName.toString();
 	//private Statement stm;
 	private Connection conn;
 	private String dbClassName;
 	private String dbPath;
-	private int lastSerial; //primo seriale non usato, viene salvato in una cella del DB
 	//private final String GOOD = "good";
 	//private final String EXPIRED = "expired";
 	
@@ -236,7 +236,8 @@ public class ServerCAConn extends Thread{
 	//Invia la lista di utenti della CA
 	protected void sendUsrList(String message) throws SAXException, IOException, ParserConfigurationException, SQLException, TransformerException, InvalidKeyException, SignatureException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeySpecException{
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-		boolean b = checkDigest(convStringToXml(message));
+		boolean b = true;
+		//boolean b = checkDigest(convStringToXml(message));
 		conn.close();
 		if (b == true){
 			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
@@ -267,7 +268,8 @@ public class ServerCAConn extends Thread{
 	//Invia la lista dei certificati di un utente
 	protected void sendCertUsrList(String message, String user) throws SAXException, IOException, ParserConfigurationException, SQLException, TransformerException, InvalidKeyException, SignatureException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeySpecException{
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-		boolean b = checkDigest(convStringToXml(message));
+		boolean b = true;
+		//boolean b = checkDigest(convStringToXml(message));
 		conn.close();
 		if (b == true){
 			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
@@ -333,7 +335,8 @@ public class ServerCAConn extends Thread{
 	//Invia i dettagli di un certificato da usare come OCSP
 	protected void sendOcsp(String message, String serialCert) throws SQLException, ParserConfigurationException, SAXException, IOException, TransformerException, InvalidKeyException, SignatureException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeySpecException{
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-		boolean b = checkDigest(convStringToXml(message));
+		boolean b = true;
+		//boolean b = checkDigest(convStringToXml(message));
 		conn.close();
 		if (b == true){
 			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
@@ -384,17 +387,27 @@ public class ServerCAConn extends Thread{
 	
 	//Invia il certificato self signed appena creato sotto richiesta dell'utente
 	protected void createNewCertificateSS(String message) throws SAXException, IOException, ParserConfigurationException, SQLException, CertificateEncodingException, InvalidKeyException, IllegalStateException, NoSuchProviderException, NoSuchAlgorithmException, SignatureException, TransformerException, InvalidKeySpecException{
+		System.out.println("Inizio a leggere i dati per il nuovo certidicato\n" + message);
 		Document doc1 = convStringToXml(message);
-		Date notAfter = convStringToDate(doc1.getElementsByTagName("notAfter").item(0).getNodeValue());
-		Date notBefore = convStringToDate(doc1.getElementsByTagName("notBefore").item(0).getNodeValue());
-		String subjectDN = doc1.getElementsByTagName("subjectDN").item(0).getNodeValue();
-		String publicKey = doc1.getElementsByTagName("publicKey").item(0).getNodeValue();
-		String signatureAlg = doc1.getElementsByTagName("signatureAlg").item(0).getNodeValue();
-		String organizationUnit = doc1.getElementsByTagName("organizationUnit").item(0).getNodeValue();
+		System.out.println("Ho convertito il messaggio");
+
+		Date notAfter = convStringToDate(doc1.getElementsByTagName("notAfter").item(0).getChildNodes().item(0).getNodeValue());
+		System.out.println("Not afret: " + notAfter);
+		Date notBefore = convStringToDate(doc1.getElementsByTagName("notBefore").item(0).getChildNodes().item(0).getNodeValue());
+		System.out.println("Not afret: " + notAfter);
+		String subjectDN = doc1.getElementsByTagName("subjectDN").item(0).getChildNodes().item(0).getNodeValue();
+		System.out.println("Not afret: " + notAfter);
+		String publicKey = doc1.getElementsByTagName("publicKey").item(0).getChildNodes().item(0).getNodeValue();
+		String signatureAlg = doc1.getElementsByTagName("signatureAlg").item(0).getChildNodes().item(0).getNodeValue();
+		String organizationUnit = doc1.getElementsByTagName("organizationUnit").item(0).getChildNodes().item(0).getNodeValue();
+		System.out.println("Provo a farmi dare un seriale");
 		int state = 0;
-		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		//conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 		int serial = getFreeSerial();
-		conn.close();
+		//conn.close();
+		System.out.println("Mi sono fatto dare un seriale");
+		System.out.println("La chive pub arrivata è: " + publicKey);
+
 		
 		X509V3CertificateGenerator certGen = new X509V3CertificateGenerator();
 		X500Principal dnName = new X500Principal("CN=Test CA Certificate");
@@ -403,11 +416,15 @@ public class ServerCAConn extends Thread{
 		certGen.setIssuerDN(dnName);
 		certGen.setNotBefore(notAfter);
 		certGen.setNotAfter(notBefore);
-		certGen.setSubjectDN(dnName);                       // note: same as issuer
-		certGen.setPublicKey(convStringToPubKey(publicKey));
+		certGen.setSubjectDN(dnName);  
+		System.out.println("provo a convertire la chiace");
+		certGen.setPublicKey(convBase64ToPubKey(publicKey));
+		System.out.println("Messa dentro");
 		certGen.setSignatureAlgorithm(signatureAlg);
-		certGen.addExtension("organizzaziotnUnit", false, organizationUnit.getBytes());
+		certGen.addExtension(organizationOID, false, organizationUnit.getBytes());
 		
+		System.out.println("Provo a farmi dare la chiave privata dala CA");
+
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 		X509Certificate cert = certGen.generate(getCaPrivKey(), "BC");
 		conn.close();
@@ -421,7 +438,8 @@ public class ServerCAConn extends Thread{
 		DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
         DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
         Document doc2 = docBuilder.newDocument();
-        Element root = doc2.createElement("createNewCertificateSSResp");
+        Element root = doc2.createElement("message");
+        root.setAttribute("operation", "createNewCertificateSSResp");
         Element certEl = doc2.createElement("serial");
         certEl.appendChild(doc2.createTextNode(serial + ""));
         root.appendChild(certEl);
@@ -457,7 +475,7 @@ public class ServerCAConn extends Thread{
 		certGen.setNotBefore(notAfter);
 		certGen.setNotAfter(notBefore);
 		certGen.setSubjectDN(dnName);                       // note: same as issuer
-		certGen.setPublicKey(convStringToPubKey(publicKey));
+		certGen.setPublicKey(convBase64ToPubKey(publicKey));
 		certGen.setSignatureAlgorithm(signatureAlg);
 		certGen.addExtension("organizzaziotnUnit", false, organizationUnit.getBytes());
 
@@ -746,7 +764,7 @@ public class ServerCAConn extends Thread{
 	}
 	
 	//Restituisce il primo seriale disponibile
-	protected int getSerial(){
+	/**protected int getSerial(){
 		return lastSerial;
 	}
 	
@@ -754,12 +772,16 @@ public class ServerCAConn extends Thread{
 	protected void incSerial() throws SQLException{
 		getSerial();
 		lastSerial += 1;
-	}
+	}*/
 	
 	//Blocca il seriale disponibile
 	protected int getFreeSerial() throws SQLException{
-		int serial = getSerial() + 1;
-		incSerial();
+		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		int serial = getSerialToDB();
+		conn.close();
+		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		setSerialInDB(serial + 1);
+		conn.close();
 		return serial;
 	}
 	
@@ -848,8 +870,8 @@ public class ServerCAConn extends Thread{
 	protected Date convStringToDate(String s){
 		StringTokenizer token = new StringTokenizer(s, "/");
 		int day = Integer.parseInt(token.nextToken());
-		int month = Integer.parseInt(token.nextToken());
-		int year = Integer.parseInt(token.nextToken());
+		int month = Integer.parseInt(token.nextToken()) - 1;
+		int year = Integer.parseInt(token.nextToken()) - 1900;
 		return new Date (year, month, day);
 	}
 	
@@ -858,9 +880,9 @@ public class ServerCAConn extends Thread{
 	//Converte un Date in formato gg/mm/aaaa
 	@SuppressWarnings("deprecation")
 	protected String getStringDate(Date date){
-		String year = ("0" + date.getYear());
+		String year = ("0" + (date.getYear() + 1900));
 		year = year.substring(year.length() - 4, year.length());
-		String month = ("0" + date.getMonth());
+		String month = ("0" + date.getMonth() + 1);
 		month = month.substring(month.length() - 2, month.length());
 		String day = ("0" + date.getDay());
 		day = day.substring(day.length() - 2, day.length());
@@ -868,23 +890,24 @@ public class ServerCAConn extends Thread{
 	}
 	
 	//Restituisce la data attuale nel formato gg/mm/aaaa
-	protected static String getStringDate(){
+	protected static String getNowStringDate(){
 		GregorianCalendar gc = new GregorianCalendar();
 		String year = ("0" + gc.get(Calendar.YEAR));
 		year = year.substring(year.length() - 4, year.length());
-		String month = ("0" + gc.get(Calendar.MONTH));
+		String month = ("0" + gc.get(Calendar.MONTH + 1));
 		month = month.substring(month.length() - 2, month.length());
 		String day = ("0" + gc.get(Calendar.DAY_OF_MONTH));
 		day = day.substring(day.length() - 2, day.length());
-		String hour = ("0" + gc.get(Calendar.HOUR));
+		/**String hour = ("0" + gc.get(Calendar.HOUR));
 		hour = hour.substring(hour.length() - 2, hour.length());
 		String minute = ("0" + gc.get(Calendar.MINUTE));
 		minute = minute.substring(minute.length() - 2, minute.length());
 		String second = ("0" + gc.get(Calendar.SECOND));
-		second = second.substring(second.length() - 2, second.length());
-		return year + "/" + month + "/" + day;
+		second = second.substring(second.length() - 2, second.length());*/
+		return day + "/" + month + "/" + year;
 	}
 	
+	/**
 	//Converte una stringa in una chiave pubblica
 	protected static PublicKey convStringToPubKey(String publicKey) throws InvalidKeySpecException, NoSuchAlgorithmException{
 		byte[] publicKeyBytes = publicKey.getBytes();
@@ -899,8 +922,27 @@ public class ServerCAConn extends Thread{
 		PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKeyBytes);
 		KeyFactory kf = KeyFactory.getInstance("RSA");
 		return kf.generatePrivate(ks);
+	}*/
+	
+	//Converte una stringa Base64 in una chiave pubblica
+	public static PublicKey convBase64ToPubKey(String publicKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
+		byte[] publicKeyBytes = publicKey.getBytes();
+		byte[] conv = Base64.decode(publicKeyBytes);
+		X509EncodedKeySpec ks = new X509EncodedKeySpec(conv);
+        KeyFactory kf = KeyFactory.getInstance("RSA");
+        return kf.generatePublic(ks);
 	}
 	
+	//Converte una stringa Base64 in una chiave privata
+	public static PrivateKey convBase64ToPrivKey(String privateKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
+		byte[] privateKeyBytes = privateKey.getBytes();
+		byte[] conv = Base64.decode(privateKeyBytes);
+		PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(conv);
+	    KeyFactory kf = KeyFactory.getInstance("RSA");
+	    return kf.generatePrivate(ks); 
+	}
+	
+	/**
 	//Converte una stringa BASE64 in una chiave pubblica
 	protected static PublicKey convBase64ToPubKey(String publicKey) throws InvalidKeySpecException, NoSuchAlgorithmException{
 		byte[] publicKeyBytes =  Base64.decode(publicKey);
@@ -916,6 +958,7 @@ public class ServerCAConn extends Thread{
 		KeyFactory kf = KeyFactory.getInstance("RSA");
 		return kf.generatePrivate(ks);
 	}*/
+	/**
 	//Converte una stringa Base64 in una chiave privata
 	public static PrivateKey convBase64ToPrivKey(String privateKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
 		System.out.println("La chiave che vohgli: " + privateKey);
@@ -924,8 +967,9 @@ public class ServerCAConn extends Thread{
 		PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(conv);
 	    KeyFactory kf = KeyFactory.getInstance("RSA");
 	    return kf.generatePrivate(ks); 
-	}
+	}*/
 	
+	/**
 	//converte una chiave privata in una stringa
 	protected static String convPrivKeyToString(PrivateKey key){
 		return new String(Base64.encode(key.getEncoded()));
@@ -934,7 +978,7 @@ public class ServerCAConn extends Thread{
 	//converte una chiave pubblica in una stringa
 	protected static String convPubKeyToString(PublicKey key){
 		return new String(key.getEncoded());
-	}
+	}*/
 	
 	//converte una chiave pubblica in una stringa BASE64
 	protected static String convPubKeyToBase64(PublicKey key){
@@ -1013,7 +1057,7 @@ public class ServerCAConn extends Thread{
         elem.appendChild(n);
         root.appendChild(elem);
         elem = xmldoc.createElementNS(null, "publicKey");
-        n = xmldoc.createTextNode(convPubKeyToString(certSigned.getPublicKey()));
+        n = xmldoc.createTextNode(convPubKeyToBase64(certSigned.getPublicKey()));
         elem.appendChild(n);
         root.appendChild(elem);
         elem = xmldoc.createElementNS(null, "certSignEncoded");
@@ -1093,12 +1137,8 @@ public class ServerCAConn extends Thread{
 	//Imposta l'ultimo seriale usato nella tabella del BD
 	protected void setSerialInDB(int newSerial) throws SQLException{
 	    Statement stm = conn.createStatement();
-		ResultSet rs = stm.executeQuery("SELECT * FROM tblSerial;");
-		if (rs.next()){
-			stm.executeUpdate("UPDATE tblSeriale SET serial = " + newSerial + ";");
-		}else{
-			stm.executeUpdate("INSERT INTO tblSeriale VALUES (2);");
-		}
+		stm.executeUpdate("DELETE FROM tblSeriale;");
+		stm.executeUpdate("INSERT INTO tblSeriale VALUES ('" + newSerial + "');");
 	}
 	
 	//Inserisce un nuovo record nei certifiati della CA
@@ -1114,7 +1154,7 @@ public class ServerCAConn extends Thread{
 	protected void insertUsrCert(String cert, int state, String notAfter, String notBefore, String serialNumber, String subjectDN) throws SQLException{
 	    //Statement stm = conn1.createStatement();
 		PreparedStatement ps = conn.prepareStatement( "INSERT INTO tblUsrCert (cert, state, notAfter, notBefore, serialNumber, subjectDN)" +
-				                                    "VALUES ?, ?, ?, ?, ?, ?;");
+				                                    "VALUES (?, ?, ?, ?, ?, ?);");
 		ps.setString(1, cert);
 		ps.setInt(2, state);
 		ps.setString(3, notAfter);
@@ -1137,7 +1177,7 @@ public class ServerCAConn extends Thread{
 		Connection conn1 = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 	    Statement stm1 = conn.createStatement();
 		stm1.executeQuery("UPDATE userCertificate SET notBefore = '" + newNotBefore + " WHERE serialNumber = " + serial + "';");
-		stm1.executeQuery("INSERT INTO  tblRinnovi (data, serialNumber, oldNotBefore, newNotBefore) VALUES ('" + getStringDate() + "','"+ serial + "','" + oldNotBefore + "','" + newNotBefore + "';");
+		stm1.executeQuery("INSERT INTO  tblRinnovi (data, serialNumber, oldNotBefore, newNotBefore) VALUES ('" + getNowStringDate() + "','"+ serial + "','" + oldNotBefore + "','" + newNotBefore + "';");
 		stm1.close();
 		conn1.close();
 	}
@@ -1155,25 +1195,32 @@ public class ServerCAConn extends Thread{
 	}
 	
 	//Query senza insert
+
 	
-	//Ottiene l'ultimo seriale usato dalla tabella del DB
-	protected void getSerialToDB() throws SQLException{
+	
+	//Ottiene il seriale del DB
+	protected int getSerialToDB() throws SQLException{
 	    Statement stm = conn.createStatement();
 		ResultSet rs = stm.executeQuery("SELECT * FROM tblSeriale");
+		int lastSerial = 1000;
 		if (rs.next()){
 			lastSerial = rs.getInt("serial");
 		}else{
-			lastSerial = 1;
+			lastSerial = 1000;
+			setSerialInDB(1000);
 		}
+		return lastSerial;
 	}
 	
+	/**
 	//Controlla se il seriale è già usato nel DB
 	@SuppressWarnings("unused")
 	private boolean serialAlreadyExist(String serialNumber) throws SQLException{
 	    Statement stm = conn.createStatement();
 		ResultSet rs = stm.executeQuery("SELECT * FROM tblUsrCert WHERE serialNumber = '" + serialNumber + "';");
 		return rs.next();
-	}
+	}*/
+	
 	
 	//Controlla se il subjectDN è già usato nel DB
 	private boolean userAlreadyExist(String subjectDN) throws SQLException{
