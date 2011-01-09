@@ -16,6 +16,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Calendar;
+import java.util.GregorianCalendar;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -36,6 +38,21 @@ public class Prove {
 		//esempioChiavi();
 		//esempioXML();
 		provaChiavi();
+		
+		GregorianCalendar gc = new GregorianCalendar();
+		String year = ("0" + gc.get(Calendar.YEAR));
+		year = year.substring(year.length() - 4, year.length());
+		String month = ("0" + gc.get(Calendar.MONTH + 1));
+		month = month.substring(month.length() - 2, month.length());
+		String day = ("0" + gc.get(Calendar.DAY_OF_MONTH));
+		day = day.substring(day.length() - 2, day.length());
+		/**String hour = ("0" + gc.get(Calendar.HOUR));
+		hour = hour.substring(hour.length() - 2, hour.length());
+		String minute = ("0" + gc.get(Calendar.MINUTE));
+		minute = minute.substring(minute.length() - 2, minute.length());
+		String second = ("0" + gc.get(Calendar.SECOND));
+		second = second.substring(second.length() - 2, second.length());*/
+		System.out.println (day + "/" + month + "/" + year);
 
 		/**Socket conn = new Socket("127.0.0.1", 8888);
 		BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
