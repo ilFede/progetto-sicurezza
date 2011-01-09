@@ -260,7 +260,7 @@ public class ClientCAGui {
 			@Override
 			public void widgetSelected(SelectionEvent e) {
 				lblPropRc.setText(username);
-				lblDaRc.setText(getStringDate());
+				lblDaRc.setText(getNowStringDate());
 				cmbAlRc.add("MD2withRSA");
 				cmbAlRc.add("MD5withRSA");
 				cmbAlRc.add("SHA1withRSA");
@@ -324,20 +324,20 @@ public class ClientCAGui {
 	}
 	
 	//Restituisce la data attuale nel formato gg/mm/aaaa
-	protected static String getStringDate(){
+	protected static String getNowStringDate(){
 		GregorianCalendar gc = new GregorianCalendar();
 		String year = ("0" + gc.get(Calendar.YEAR));
 		year = year.substring(year.length() - 4, year.length());
-		String month = ("0" + gc.get(Calendar.MONTH));
+		String month = ("0" + gc.get(Calendar.MONTH + 1));
 		month = month.substring(month.length() - 2, month.length());
 		String day = ("0" + gc.get(Calendar.DAY_OF_MONTH));
 		day = day.substring(day.length() - 2, day.length());
-		String hour = ("0" + gc.get(Calendar.HOUR));
+		/**String hour = ("0" + gc.get(Calendar.HOUR));
 		hour = hour.substring(hour.length() - 2, hour.length());
 		String minute = ("0" + gc.get(Calendar.MINUTE));
 		minute = minute.substring(minute.length() - 2, minute.length());
 		String second = ("0" + gc.get(Calendar.SECOND));
-		second = second.substring(second.length() - 2, second.length());
-		return year + "/" + month + "/" + day;
+		second = second.substring(second.length() - 2, second.length());*/
+		return day + "/" + month + "/" + year;
 	}
 }
