@@ -38,7 +38,7 @@ public class Prove {
 		//esempioChiavi();
 		//esempioXML();
 		provaChiavi();
-		
+		/**
 		GregorianCalendar gc = new GregorianCalendar();
 		String year = ("0" + gc.get(Calendar.YEAR));
 		year = year.substring(year.length() - 4, year.length());
@@ -52,7 +52,6 @@ public class Prove {
 		minute = minute.substring(minute.length() - 2, minute.length());
 		String second = ("0" + gc.get(Calendar.SECOND));
 		second = second.substring(second.length() - 2, second.length());*/
-		System.out.println (day + "/" + month + "/" + year);
 
 		/**Socket conn = new Socket("127.0.0.1", 8888);
 		BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
@@ -178,10 +177,10 @@ public class Prove {
 	        System.out.println("Chiave: " + codifica2);
 	        System.out.println("Chiavi uguali:" + codifica.equals(codifica2));
 	        PublicKey kpp = kp.getPublic();*/
-	        String codifica = "MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQCRufSfY7yxqQvTHAYcsg+GtbfDWZB3OmL9md+zwc09hIjCcxDIIQ6omjrcGjLU/dfkbWOBtr9FeSVXcj080eDlYLqG2lF55i9Y6Xu0toMnWQXE1Oz6y7cWVw4ePQ1zNpNr7yx8DobuJeaw80iVgDrU0YoKwfVbXgnKF0a+UJnP1QIDAQAB";
+	        String codifica = "MIICdgIBADANBgkqhkiG9w0BAQEFAASCAmAwggJcAgEAAoGBAJehoqof6JSYs5/rii/xJ36vZjGlQPoV6XSvjDPkoQUC9pNh4s/dGs5lq4CspWooanJSwE88LAuZj6M0oi9wLWkIzSnHlIJI2tniF4Joqhi0unR40kLQ0raL64cA7z8fPJYjxE51Bh6LgRqNq8QA05azmNpQmHw+w60onkz4aAbDAgMBAAECgYAlCiXbGupMijSupvHdnjIAn0X+cJi7vmiFyXAdKQcwWzXycKHgFum6a1mGmCXcFb1S6eXyNQepWbydqHjJz8Q3mIVFWV/JEJTaH87vd8gOoWuT1sW7pRDuAz/Vxez4GgdK+HlPb0NVl+ene8D+ftGUyx4mV1b1jSNkVn5geXhzaQJBANZ80K/UNfCuLNbPzB+bngavv8xTgkNOFAkourAsv6WwCQk/DigP2UIgl7aRl3L/3DXWbVoFMK7XKrnA8PdihM8CQQC0+n6QvKlHPcqBQsQzu25sUMIZxLz1QjDgNv0HJCuqfb5X+C4T5M+OmRzwZHLB7K4/ODVCOVj2Cxe6F0eBhsPNAkA21P28lXGcr8pCuCikw/GoH/HWWFrqveEdXk4rj6UGxHPq6zXBRBv0bcSbJakj+wjesoyOANmrONJxXkO72nG9AkEAmqw3vWWwWzXBO+YfH4OCJUqECVfuksJGWWpFqHPOagDby/1NDC2TAnFznTSMK5cneNqGEhpHIMlsNtwsfdP6xQJAU9qldOs4iEkhlbZiNTzaNJubD7nO3vFkTR0ETKUmye/xSyHy1px1cH9BdASBBiFNPhBChr4vLQ2ml0vUiJLFZg==";
 	                          
 	        System.out.println("Chiave: " + codifica);
-	        PublicKey kpp2 = CertificateAuthority.convBase64ToPubKey(codifica);
+	        PrivateKey kpp2 = CertificateAuthority.convBase64ToPrivKey(codifica);
 	        /**codifica2 = CertificateAuthority.convPubKeyToBase64(kpp2);
 	        System.out.println("Chiave: " + codifica2);*/
 	        System.out.println("Fatto");

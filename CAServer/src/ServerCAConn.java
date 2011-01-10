@@ -18,6 +18,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.Security;
 import java.security.Signature;
 import java.security.SignatureException;
 import java.security.cert.CRLException;
@@ -73,15 +74,16 @@ public class ServerCAConn extends Thread{
 	protected Socket clientConnection;
 	protected BufferedReader in;
 	protected PrintStream out;
-	protected X509V2CRLGenerator crlGen;
+	//protected X509V2CRLGenerator crlGen;
 	protected final String DIGEST_SIGN_ALG = "MD2withRSA";
 	protected final String GOOD = "good";
 	protected final String REVOKED = "revoked";
 	protected final String EXPIRED = "expired";
-	protected final String CANAME = "FedeCA";
+	protected final String CANAME = "CN=Test CA Certificate";
 	protected final String CRL_SIGN_ALG = "MD2withRSA";
 	protected final String OP_FAIL = "fail";
 	protected final String organizationOID = X509Extensions.IssuerAlternativeName.toString();
+	protected final String CA_NAME = "CN=Test CA Certificate";
 	//private Statement stm;
 	private Connection conn;
 	private String dbClassName;
@@ -99,6 +101,7 @@ public class ServerCAConn extends Thread{
 	}
 	
 	public ServerCAConn(Socket clientConnection, String dbClassName, String dbPath, X509V2CRLGenerator crlGen) throws SQLException, ClassNotFoundException{
+		Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider ());
 		this.dbClassName = dbClassName;
 		this.dbPath = dbPath;
 		System.out.println(dbClassName);
@@ -109,7 +112,7 @@ public class ServerCAConn extends Thread{
 		//System.out.println("only red " + conn.isReadOnly());
 	    //Statement stm = conn.createStatement();
 		this.clientConnection = clientConnection;
-		this.crlGen = crlGen;
+		//this.crlGen = crlGen;
 		try{
 			in = new BufferedReader(new InputStreamReader(clientConnection.getInputStream()));
 			out = new PrintStream(clientConnection.getOutputStream());
@@ -163,6 +166,7 @@ public class ServerCAConn extends Thread{
         DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
         Document doc2 = docBuilder.newDocument();
 		Element root = doc2.createElement("opName");
+		root.setAttribute("success", false + "");
         Element certEl = doc2.createElement("esit");
         certEl.appendChild(doc2.createTextNode("false"));
         root.appendChild(certEl);
@@ -188,35 +192,57 @@ public class ServerCAConn extends Thread{
 			try{
 				if (opName.equals("sendUsrList")){
 					sendUsrList(message);
+					
 				}else if (opName.equals("sendCertUsrList")){
 					String usr = messNode.getChildNodes().item(0).getChildNodes().item(0).getNodeValue();
 					sendCertUsrList(message, usr);
+					
+				}else if (opName.equals("sendRenewableUsrCert")){
+					System.out.println("Etrto");
+					String usr = doc.getElementsByTagName("user").item(0).getChildNodes().item(0).getNodeValue();
+					System.out.println("L'utente è: ");
+					sendRenewableUsrCert(message, usr);
+					
 				}else if (opName.equals("sendValidUsrCert")){
 					System.out.println("Etrto");
 					String usr = doc.getElementsByTagName("user").item(0).getChildNodes().item(0).getNodeValue();
 					System.out.println("L'utente è: ");
 					sendValidUsrCert(message, usr);
+					
 				}else if (opName.equals("sendUsrCert")){
 					System.out.println("Etrto");
 					String usr = doc.getElementsByTagName("user").item(0).getChildNodes().item(0).getNodeValue();
 					System.out.println("L'utente è: ");
 					sendUsrCert(message, usr);
+					
 				}else if (opName.equals("sendOcsp")){
 					String serial = doc.getElementsByTagName("serial").item(0).getChildNodes().item(0).getNodeValue();
 					sendOcsp(message, serial);
+					
 				}else if (opName.equals("createNewCertificateSS")){
 					createNewCertificateSS(message);
+					
 				}else if (opName.equals("createNewCertificate")){
-					createNewCertificate(message);
+					String serial = doc.getElementsByTagName("serialSign").item(0).getChildNodes().item(0).getNodeValue();
+					createNewCertificate(message, serial);
+					
 				}else if (opName.equals("revokeCert")){
-					String cert = messNode.getChildNodes().item(0).getNodeValue();
-					String reason = messNode.getChildNodes().item(1).getNodeValue();
-					revokedCert(message, cert, Integer.parseInt(reason));
-				}else if (opName.equals("renewCert")){
-					String cert = messNode.getChildNodes().item(0).getNodeValue();
-					String newNotBefore = messNode.getChildNodes().item(1).getNodeValue();
-					String publicKey = messNode.getChildNodes().item(2).getNodeValue();
-					renewCert(message, cert, newNotBefore, publicKey);
+					String serial = doc.getElementsByTagName("serial").item(0).getChildNodes().item(0).getNodeValue();
+					String reason = doc.getElementsByTagName("reason").item(0).getChildNodes().item(0).getNodeValue();
+					String serialSign = doc.getElementsByTagName("serialSign").item(0).getChildNodes().item(0).getNodeValue();
+					System.out.println("Entrato" + serial + " " + reason + " " + serialSign);
+ 
+					revokedCert(message, serial, Integer.parseInt(reason), serialSign);
+					
+				}else if (opName.equals("renewsCertificate")){
+					
+					String cert = doc.getElementsByTagName("serial").item(0).getChildNodes().item(0).getNodeValue();
+					String newNotBefore = doc.getElementsByTagName("newNotBefore").item(0).getChildNodes().item(0).getNodeValue();
+					String publicKey = doc.getElementsByTagName("publicKey").item(0).getChildNodes().item(0).getNodeValue();
+					String signatureSerial = doc.getElementsByTagName("serialSign").item(0).getChildNodes().item(0).getNodeValue();
+					System.out.println("Entrato" + cert + " " + newNotBefore + " " + publicKey + " " + signatureSerial);
+					renewCert(message, cert, newNotBefore, publicKey, signatureSerial);
+					
 				}else if (opName.equals("sendCrl")){
 					sendCRL();
 				}else if (opName.equals("insertNewUser")){
@@ -253,6 +279,7 @@ public class ServerCAConn extends Thread{
 	        //create the root element and add it to the document
 	        Element root = doc.createElement("message");
 	        root.setAttribute("operation", "sendUsrListResp");
+	        root.setAttribute("success", "true");
 			System.out.println("provo i risultati");
 			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 			ResultSet rs = getCAUser();
@@ -289,11 +316,13 @@ public class ServerCAConn extends Thread{
 	        //create the root element and add it to the document
 	        Element root = doc.createElement("message");
 	        root.setAttribute("operation", "sendCertUsrListResp");
+	        boolean success = false;
 			System.out.println("provo i risultati");
 			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 			ResultSet rs = getListUserCert(user);
 			System.out.println("Ho i risultati");
 			while (rs.next()){
+				success = true;
 				System.out.println("Ho un buono!");
 				String serial = rs.getString(5);
 				System.out.println(serial);
@@ -308,6 +337,7 @@ public class ServerCAConn extends Thread{
 			}
 			conn.close();
 			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+	        root.setAttribute("success", success + "");
 			sendWithDigest(root);
 			conn.close();
 		}else{
@@ -316,6 +346,7 @@ public class ServerCAConn extends Thread{
 			conn.close();
 		}	
 	}
+	
 	//Invia la lista dei certificati validi di un utente
 	protected void sendValidUsrCert(String message, String user) throws SAXException, IOException, ParserConfigurationException, SQLException, TransformerException, InvalidKeyException, SignatureException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeySpecException{
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
@@ -329,11 +360,14 @@ public class ServerCAConn extends Thread{
 	        //create the root element and add it to the document
 	        Element root = doc.createElement("message");
 	        root.setAttribute("operation", "sendValidUsrCertResp");
+	        boolean success = false;
+	        root.setAttribute("success", "true");
 			System.out.println("provo i risultati");
 			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 			ResultSet rs = getValidUserCert(user);
 			System.out.println("Ho i risultati");
 			while (rs.next()){
+				success = true;
 				System.out.println("Ho un buono!");
 				String serial = rs.getString(5);
 				System.out.println(serial);
@@ -349,6 +383,52 @@ public class ServerCAConn extends Thread{
 				}
 			}
 			conn.close();
+	        root.setAttribute("success", success + "");
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+			sendWithDigest(root);
+			conn.close();
+		}else{
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+			sendFailure("sendHaveValidCertResp");
+			conn.close();
+		}	
+	}
+	
+	//Invia la lista dei certificati rinnovabili di un utente
+	protected void sendRenewableUsrCert(String message, String user) throws SAXException, IOException, ParserConfigurationException, SQLException, TransformerException, InvalidKeyException, SignatureException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeySpecException{
+		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		//boolean b = checkDigest(convStringToXml(message));
+		boolean b = true;
+		conn.close();
+		if (b == true){
+			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+	        DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+	        Document doc = docBuilder.newDocument();
+	        //create the root element and add it to the document
+	        Element root = doc.createElement("message");
+	        root.setAttribute("operation", "sendRenewableUsrCertResp");
+	        boolean success = false;
+	        root.setAttribute("success", "true");
+			System.out.println("provo i risultati");
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+			ResultSet rs = getValidUserCert(user);
+			System.out.println("Ho i risultati");
+			while (rs.next()){
+				success = true;
+				System.out.println("Ho un buono!");
+				String serial = rs.getString(5);
+				System.out.println(serial);
+				Date notBefore = convStringToDate(rs.getString(4));
+				System.out.println(notBefore);
+				System.out.println(convDateToString(notBefore));
+				Date now = getDate();
+				System.out.println(convDateToString(now));
+				Element usr = doc.createElement("cert");
+				usr.appendChild(doc.createTextNode(serial));
+				root.appendChild(usr);
+			}
+			conn.close();
+	        root.setAttribute("success", success + "");
 			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 			sendWithDigest(root);
 			conn.close();
@@ -372,11 +452,13 @@ public class ServerCAConn extends Thread{
 	        //create the root element and add it to the document
 	        Element root = doc.createElement("message");
 	        root.setAttribute("operation", "sendHaveValidCertResp");
-			System.out.println("provo i risultati");
+	        boolean success = false;
+	        System.out.println("provo i risultati");
 			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 			ResultSet rs = getListUserCert(user);
 			System.out.println("Ho i risultati");
 			while (rs.next()){
+				success = true;
 				System.out.println("Ho un buono!");
 				String serial = rs.getString(5);
 				System.out.println(serial);
@@ -391,6 +473,7 @@ public class ServerCAConn extends Thread{
 					root.appendChild(usr);
 				}
 			}
+	        root.setAttribute("success", success + "");
 			conn.close();
 			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 			sendWithDigest(root);
@@ -427,6 +510,7 @@ public class ServerCAConn extends Thread{
             //create the root element and add it to the document
             Element root = doc.createElement("message");
             root.setAttribute("operation", "sendOcspResp");
+	        root.setAttribute("success", "true");
             doc.appendChild(root);
             //create child element and append it
             Element certEl = doc.createElement("cert");
@@ -486,13 +570,14 @@ public class ServerCAConn extends Thread{
 
 		
 		X509V3CertificateGenerator certGen = new X509V3CertificateGenerator();
-		X500Principal dnName = new X500Principal("CN=Test CA Certificate");
+		X500Principal dnName = new X500Principal(CA_NAME);
+		X500Principal dnSubject = new X500Principal(subjectDN);
 
 		certGen.setSerialNumber(new BigInteger(serial + ""));
 		certGen.setIssuerDN(dnName);
 		certGen.setNotBefore(notAfter);
 		certGen.setNotAfter(notBefore);
-		certGen.setSubjectDN(dnName);  
+		certGen.setSubjectDN(dnSubject);  
 		System.out.println("provo a convertire la chiace");
 		certGen.setPublicKey(convBase64ToPubKey(publicKey));
 		System.out.println("Messa dentro");
@@ -515,6 +600,7 @@ public class ServerCAConn extends Thread{
         DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
         Document doc2 = docBuilder.newDocument();
         Element root = doc2.createElement("message");
+        root.setAttribute("success", "true");
         root.setAttribute("operation", "createNewCertificateSSResp");
         Element certEl = doc2.createElement("serial");
         certEl.appendChild(doc2.createTextNode(serial + ""));
@@ -528,8 +614,10 @@ public class ServerCAConn extends Thread{
 	}
 	
 	//Invia il certificato dopo la richiesta di uno firmato
-	protected void createNewCertificate(String message) throws SAXException, IOException, ParserConfigurationException, SQLException, InvalidKeyException, SignatureException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, TransformerException, InvalidKeySpecException{
-		boolean b = checkDigest(convStringToXml(message));
+	protected void createNewCertificate(String message, String signatureSerial) throws SAXException, IOException, ParserConfigurationException, SQLException, InvalidKeyException, SignatureException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, TransformerException, InvalidKeySpecException{
+		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		boolean b = checkDigest(convStringToXml(message), signatureSerial);
+		conn.close();
 		if (b == true){
 			System.out.println("Inizio a leggere i dati per il nuovo certidicato\n" + message);
 			Document doc1 = convStringToXml(message);
@@ -546,21 +634,23 @@ public class ServerCAConn extends Thread{
 			String organizationUnit = doc1.getElementsByTagName("organizationUnit").item(0).getChildNodes().item(0).getNodeValue();
 			System.out.println("Provo a farmi dare un seriale");
 			int state = 0;
-			//conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 			int serial = getFreeSerial();
-			//conn.close();
+			conn.close();
 			System.out.println("Mi sono fatto dare un seriale");
 			System.out.println("La chive pub arrivata è: " + publicKey);
 	
 			
 			X509V3CertificateGenerator certGen = new X509V3CertificateGenerator();
-			X500Principal dnName = new X500Principal("CN=Test CA Certificate");
+			X500Principal dnName = new X500Principal(CA_NAME);
+			X500Principal dnSubject = new X500Principal(subjectDN);
+
 	
 			certGen.setSerialNumber(new BigInteger(serial + ""));
 			certGen.setIssuerDN(dnName);
 			certGen.setNotBefore(notAfter);
 			certGen.setNotAfter(notBefore);
-			certGen.setSubjectDN(dnName);  
+			certGen.setSubjectDN(dnSubject);  
 			System.out.println("provo a convertire la chiace");
 			certGen.setPublicKey(convBase64ToPubKey(publicKey));
 			System.out.println("Messa dentro");
@@ -584,6 +674,7 @@ public class ServerCAConn extends Thread{
 	        Document doc2 = docBuilder.newDocument();
 	        Element root = doc2.createElement("message");
 	        root.setAttribute("operation", "createNewCertificateSSResp");
+	        root.setAttribute("success", "true");
 	        Element certEl = doc2.createElement("serial");
 	        certEl.appendChild(doc2.createTextNode(serial + ""));
 	        root.appendChild(certEl);
@@ -654,32 +745,41 @@ public class ServerCAConn extends Thread{
 	       
 	}*/
 	
-	protected void revokedCert(String message, String cert, int reason) throws TransformerException, IOException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeySpecException, SQLException, ParserConfigurationException, InvalidKeyException, SignatureException, SAXException{
+	protected void revokedCert(String message, String cert, int reason, String serial) throws TransformerException, IOException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeySpecException, SQLException, ParserConfigurationException, InvalidKeyException, SignatureException, SAXException{
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-		boolean b = checkDigest(convStringToXml(message));
+		boolean b = checkDigest(convStringToXml(message), serial);
 		conn.close();
 		
 		if (b == true){
 			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-			setStateCert(cert, REVOKED, 0);
+			System.out.println("Fatto1");
+			setStateCert(cert, REVOKED, reason);
 			conn.close();
 			
-			crlGen.addCRLEntry(new BigInteger(cert), getDate(), reason);
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+			System.out.println("Fatto2");
+			insertRevokedCert(cert, reason);
+			conn.close();
+			System.out.println("Fatto3");
+
+			//crlGen.addCRLEntry(new BigInteger(cert), getDate(), reason);
 			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
 			DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
 			Document doc = docBuilder.newDocument();
 			//create the root element and add it to the document
 			Element root = doc.createElement("message");
 			root.setAttribute("operation", "revokedCertResp");
+	        root.setAttribute("success", "true");
 			Element response = doc.createElement("result");
 			response.appendChild(doc.createTextNode("OK"));
 			root.appendChild(response);
-			
+			/**
 			crlGen.setIssuerDN(getCACert().getSubjectX500Principal());
 			crlGen.setThisUpdate(getDate());
 			crlGen.setNextUpdate(getDate());
 			crlGen.setSignatureAlgorithm(CRL_SIGN_ALG);
 			crlGen.addCRLEntry(new BigInteger(cert), getDate(), CRLReason.privilegeWithdrawn);
+			*/
 			
 			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 			sendWithDigest(root);
@@ -692,9 +792,9 @@ public class ServerCAConn extends Thread{
 		
 	}
 	
-	protected void renewCert(String message, String serialCert, String newNotBefore, String newPublicKey) throws SQLException, InvalidKeyException, SignatureException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, TransformerException, SAXException, IOException, ParserConfigurationException, IllegalArgumentException, InvalidKeySpecException{
+	protected void renewCert(String message, String serialCert, String newNotBefore, String newPublicKey, String signatureSerial) throws SQLException, InvalidKeyException, SignatureException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, TransformerException, SAXException, IOException, ParserConfigurationException, IllegalArgumentException, InvalidKeySpecException{
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-		boolean b = checkDigest(convStringToXml(message));
+		boolean b = checkDigest(convStringToXml(message), signatureSerial);
 		conn.close();
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 		ResultSet rs = getUserCert(serialCert);
@@ -707,32 +807,53 @@ public class ServerCAConn extends Thread{
 
 		certGen.setSerialNumber(vecchio.getSerialNumber());
 		certGen.setIssuerDN(vecchio.getIssuerX500Principal());
-		certGen.setNotBefore(vecchio.getNotAfter());
+		certGen.setNotBefore(vecchio.getNotBefore());
 		certGen.setNotAfter(convStringToDate(newNotBefore));
 		certGen.setSubjectDN(vecchio.getSubjectX500Principal());                       
 		certGen.setPublicKey(convBase64ToPubKey(newPublicKey));
 		certGen.setSignatureAlgorithm(vecchio.getSigAlgName());
-		certGen.addExtension("organizzaziotnUnit", false, vecchio.getExtensionValue("organizzaziotnUnit"));
+		certGen.addExtension(organizationOID, false, vecchio.getExtensionValue(organizationOID));
+		conn.close();
 		
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 		X509Certificate newCert = certGen.generate(getCaPrivKey(), "BC");
 		conn.close();
 		
+		System.out.println("fatto");
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 		deleteUsrCert(serialCert);
 		conn.close();
 		
+		System.out.println("fatto2");
+		
 		String subjectDN = vecchio.getSubjectDN().getName();
 		String notAfter = convDateToString(vecchio.getNotAfter());
 		String strCert = convX509ToBase64(newCert);
+		
+		System.out.println("fatto3"); 
+		
+		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		insertUsrCert(strCert, "goog", notAfter, newNotBefore, serialCert, subjectDN, "0");
+		conn.close();
+		/**
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 		insertUsrCert(strCert, "GOOD", notAfter, newNotBefore, serialCert, subjectDN, "0");
+		conn.close();
+		*/
+		String oldNotBefore = convDateToString(vecchio.getNotBefore());
+		
+		System.out.println("fatto4");
+		
+		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		insertRinnCert(serialCert, newNotBefore, oldNotBefore);
 		conn.close();
 		
 		DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
         DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
         Document doc2 = docBuilder.newDocument();
-        Element root = doc2.createElement("renewCertResp");
+        Element root = doc2.createElement("message");
+        root.setAttribute("operation", "renewCertResp");
+        root.setAttribute("success", "true");
         Element certEl = doc2.createElement("serial");
         certEl.appendChild(doc2.createTextNode(serialCert + ""));
         root.appendChild(certEl);
@@ -748,6 +869,23 @@ public class ServerCAConn extends Thread{
 	
 	@SuppressWarnings("deprecation")
 	protected void sendCRL() throws ParserConfigurationException, CRLException, InvalidKeyException, NoSuchProviderException, SecurityException, SignatureException, InvalidKeySpecException, NoSuchAlgorithmException, SQLException, TransformerException, IOException{
+		X509V2CRLGenerator   crlGen = new X509V2CRLGenerator();
+		crlGen.setIssuerDN(new X500Principal("CN=Test CA"));
+		Date now = getDate();
+		crlGen.setThisUpdate(now);
+		crlGen.setNextUpdate(now);
+		crlGen.setSignatureAlgorithm(CRL_SIGN_ALG);
+		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		ResultSet rs = getRevokedCert();
+		while(rs.next()){
+			String serial = rs.getString(1);
+			BigInteger bigSerial = new BigInteger(serial);
+			int reason = rs.getInt(2);
+			String strDate = rs.getString(3);
+			Date date = convStringToDate(strDate);
+			crlGen.addCRLEntry(bigSerial, date, reason);
+		}
+				
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 		X509CRL crl = crlGen.generateX509CRL(getCaPrivKey(), "BC");
 		conn.close();
@@ -758,8 +896,10 @@ public class ServerCAConn extends Thread{
 		//create the root element and add it to the document
 		Element root = doc.createElement("message");
 		root.setAttribute("operation", "sendCRLResp");
+		root.setAttribute("success", "true");
 		Element response = doc.createElement("crl");
 		response.appendChild(doc.createTextNode(crlString));
+		root.appendChild(response);
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 		sendWithDigest(root);
 		conn.close();
@@ -952,24 +1092,32 @@ public class ServerCAConn extends Thread{
 	}
 	
 	//Controlla la firma di un messaggio
-	protected boolean checkDigest(Document doc) throws SignatureException, InvalidKeyException, CertificateException, NoSuchProviderException, SQLException, NoSuchAlgorithmException, TransformerException{
+	protected boolean checkDigest(Document doc, String serial) throws SignatureException, InvalidKeyException, CertificateException, NoSuchProviderException, SQLException, NoSuchAlgorithmException, TransformerException{
 		String message = getMessage(doc);
 		String digest64 = getDigest64(doc);
-		String sender = getSender(doc);
 		Signature s = Signature.getInstance(DIGEST_SIGN_ALG);
+		String cert64 = getUserCert(serial).getString(1);
+		System.out.println("Ho ricevuto il certificato");
+		X509Certificate certif = convBase64ToX509(cert64);
+		System.out.println("Ho convertito il certificato");
+		PublicKey kpub = certif.getPublicKey();
+		System.out.println("Ho estretto la chiva");
+
+		
+		s.initVerify(kpub);
 		s.update(message.getBytes());
-		boolean digestOK = false;
-		ResultSet certificates = getValidUserCert(sender);
+		/**ResultSet certificates = getValidUserCert(sender);
 		int col = 0;
 		while(certificates.next()){
 			col ++;
 			PublicKey kpub = convBase64ToX509(certificates.getString(col)).getPublicKey();
 			s.initVerify(kpub);
+			s.update(message.getBytes());
 		    if (s.verify(Base64.decode(digest64))){
 		    	digestOK = true;
 		    }
-		}
-		return digestOK;
+		}*/
+		return s.verify(Base64.decode(digest64));
 	}
 	
 	//Restituisce la stringa rappresentante il messaggio
@@ -1232,16 +1380,16 @@ public class ServerCAConn extends Thread{
 	
 	//Converte una certificato in una stringa base 64
 	protected String convX509ToBase64(X509Certificate cert) throws CertificateEncodingException{
-		String strCert = new String(cert.getEncoded());
-		byte[] byteBase64 = Base64.encode(strCert.getBytes());
+		//String strCert = new String(cert.getEncoded());
+		byte[] byteBase64 = Base64.encode(cert.getEncoded());
 		return new String(byteBase64);
 	}
 	
 	//Converte una stringa base64 iu un certificato
 	protected X509Certificate convBase64ToX509(String base64Cert) throws CertificateException, NoSuchProviderException{
-		byte[] byteCert = Base64.decode(base64Cert.getBytes());
-		CertificateFactory fact = CertificateFactory.getInstance("X.509","BC");
-		X509Certificate cert = (X509Certificate)fact.generateCertificate(new ByteArrayInputStream(byteCert));
+		byte[] data = Base64.decode(base64Cert);
+        CertificateFactory fact = CertificateFactory.getInstance("X.509","BC");
+        X509Certificate cert = (X509Certificate)fact.generateCertificate(new ByteArrayInputStream(data));
 		return cert;
 	}
 	
@@ -1304,6 +1452,16 @@ public class ServerCAConn extends Thread{
 		conn1.close();
 	}
 	
+	//Inserisce un certificato nella tabella dei revocati
+	protected void insertRevokedCert(String serial, int reason) throws SQLException{
+		String date = convDateToString(getDate());
+	    PreparedStatement ps = conn.prepareStatement("INSERT INTO tblRevokedCert (serialNumber, opDate, reason) VALUES (?, ?, ?);");
+		ps.setString(1, serial);
+		ps.setString(2, date);
+		ps.setInt(3, reason);
+		ps.executeUpdate();	
+	}
+	
 	//Inserisce un nuovo certificato tra quelli degli utenti
 	protected void insertUsrCert(String cert, String state, String notAfter, String notBefore, String serialNumber, String subjectDN, String reason) throws SQLException{
 	    //Statement stm = conn1.createStatement();
@@ -1321,6 +1479,7 @@ public class ServerCAConn extends Thread{
 		ps.close();
 	}
 	
+	/**
 	//Aggiorna la scadenza di un certificato
 	protected void renewalCert(String serial, String newNotBefore) throws SQLException{
 	    Statement stm = conn.createStatement();
@@ -1335,6 +1494,14 @@ public class ServerCAConn extends Thread{
 		stm1.executeQuery("INSERT INTO  tblRinnovi (data, serialNumber, oldNotBefore, newNotBefore) VALUES ('" + getNowStringDate() + "','"+ serial + "','" + oldNotBefore + "','" + newNotBefore + "';");
 		stm1.close();
 		conn1.close();
+	}
+	*/
+	
+	//Inserisce un nuovo aggiornamento nella tabella dei rinnovi
+	protected void insertRinnCert(String serial, String newNotBefore, String oldNotBefore) throws SQLException{
+	    Statement stm1 = conn.createStatement();
+		stm1.executeUpdate("INSERT INTO  tblRinnovi (dataOP, serialNumber, oldNotBefore, newNotBefore) VALUES ('" + getNowStringDate() + "','"+ serial + "','" + oldNotBefore + "','" + newNotBefore + "');");
+		stm1.close();
 	}
 	
 	//Inserisce un nuovo utente nel DB
@@ -1430,13 +1597,13 @@ public class ServerCAConn extends Thread{
 	//Restituisce la lista dei certificati revocati
 	protected ResultSet getRevokedCert() throws SQLException{
 	    Statement stm = conn.createStatement();
-		return stm.executeQuery("SELECT serialNumber FROM tblUsrCert WHERE state = '" + REVOKED + "';");
+		return stm.executeQuery("SELECT serialNumber, reason, opDate FROM tblRevokedCert;");
 	}
 	
 	//Setta lo stato di un certificato
 	protected void setStateCert(String serial, String state, int reason) throws SQLException{
 	    Statement stm = conn.createStatement();
-		stm.executeUpdate("UPDATE tblUsrCert SET state = '"+ state +"' AND reason = '" + reason + "' WHERE serialNumber = " + serial + "';");
+		stm.executeUpdate("UPDATE tblUsrCert SET state = '"+ state +"', reason = '" + reason + "' WHERE serialNumber = '" + serial + "';");
 	}
 	
 	//Restituisce lo stato di un certificato
@@ -1452,7 +1619,7 @@ public class ServerCAConn extends Thread{
 	//Elimina un certificato
 	protected void deleteUsrCert(String serial) throws SQLException{
 		Statement stm = conn.createStatement();
-		stm.executeQuery("DELETE FROM tblUsrCert WHERE serialNumber = '" + serial + ",;");
+		stm.executeUpdate("DELETE FROM tblUsrCert WHERE serialNumber = '" + serial + "';");
 		stm.close();
 	}
 	
