@@ -71,6 +71,7 @@ public class ClientCA{
 	
 	//Costruttore
 	public ClientCA(String username, String dbClassName, String dbPath, Socket clientConn, PublicKey caPk) throws SQLException, ClassNotFoundException{
+		Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider ());
 		Class.forName("org.sqlite.JDBC"); 
 		this.username = username;
 		this.dbClassName = dbClassName;
@@ -90,12 +91,18 @@ public class ClientCA{
 		System.out.println("Ci sosdad");
 		window.open();
 		window.write("ciao");
-		System.out.println("Il numero è: " + num);
-		ArrayList<String> array = recieveOcsp("1000");
+		//System.out.println("Il numero è: " + num);
+		//boolean b = sendRevokeRequest("1012", 1, "1012");
+		//System.out.println("Il risultato dell'operazione è: " + b);
+		
+		/**
+		ArrayList<String> array = recieveUrsList();
 		System.out.println("Certtificati validi: ");
 		for (int i = 0; i < array.size(); i++){
 			System.out.println(array.get(i));
-		}
+		}*/
+		//X509CRL crl = sendCrlRequest();
+		//System.out.println(crl.toString());
 		//recieveCaPubKey();
 		
 		//String user = getUsername().getString(1);
@@ -121,6 +128,19 @@ public class ClientCA{
 		}
 	}
 	
+	//Controlla se l'operazione ha avuto successo
+	protected boolean checkSuccess(Document doc){
+		Node messNode = (doc.getElementsByTagName("message").item(0));
+		System.out.println("fattoooo");
+
+		Node opSucc = messNode.getAttributes().item(1);
+		System.out.println("fatoooo");
+
+		String succ = opSucc.getNodeValue();
+		System.out.println("Il risultato dell'operazione è: " + succ);
+		return succ.equals("true");
+	}
+	
 	//Invia un messaggio firmandolo
 	protected void sendWithDigest(Element elem, PrivateKey privKey){
 		try{
@@ -129,6 +149,7 @@ public class ClientCA{
 			String digest = createDigest(xmlString, key);
 			String message = "<document sender=\""+ username +"\">\n" + convXMLToString(elem) + "<digest>\n" + digest + "\n</digest>\n</document>";
 	        window.write("Messaggio inviato:\n" + message + "\n-------------------------------");
+	        System.out.println(message);
 			out.println(message);
 		}catch (Exception e){
 			System.out.println(e.getMessage());
@@ -165,7 +186,7 @@ public class ClientCA{
 			Document response = convStringToXml(document);
 			Node message = (response.getElementsByTagName("message").item(0));
 			String caPubKeyString = message.getChildNodes().item(0).getTextContent();
-			return convStringToPubKey(caPubKeyString);
+			return convBase64ToPubKey(caPubKeyString);
 		}catch(Exception e){
 			System.out.println(e.getMessage());
 			return null;
@@ -187,9 +208,15 @@ public class ClientCA{
 			String document = recieve();
 			Document response = convStringToXml(document);
 			boolean digestOk = checkDigest(response);
-			if (digestOk == true){			
-				NodeList message = (response.getElementsByTagName("user"));
-				return convNodeListToArrayList(message);
+			if (digestOk == true){	
+				boolean check = checkSuccess(response);
+				if (check == true){
+					NodeList message = (response.getElementsByTagName("user"));
+					System.out.println("Ho trovato la bellezza di " + message.getLength());
+					return convNodeListToArrayList(message);
+				}else{
+					return null;
+				}
 			}else{
 				return null;
 			}
@@ -216,9 +243,56 @@ public class ClientCA{
 			String document = recieve();
 			Document response = convStringToXml(document);
 			boolean digestOk = checkDigest(response);
-			if (digestOk == true){			
-				NodeList message = (response.getElementsByTagName("cert"));
-				return convNodeListToArrayList(message);
+			if (digestOk == true){	
+				System.out.println("Controllo il chek");
+				boolean check = checkSuccess(response);
+				if (check == true){
+					System.out.println("il chek va bene");
+					NodeList message = (response.getElementsByTagName("cert"));
+					System.out.println("Ho trovato la bellezza di " + message.getLength());
+					return convNodeListToArrayList(message);
+				}else{
+					return null;
+				}
+			}else{
+				return null;
+			}
+		}catch(Exception e){
+			System.out.println(e.getMessage());
+			return null;
+		}
+	}
+	
+	//Riceve la lista dei certificati validi di un utente
+	protected ArrayList<String> recieveRenewableCertUsrList(String serialUser){
+		try{
+			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+			DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+			Document doc = docBuilder.newDocument();
+			//create the root element and add it to the document
+			Element root = doc.createElement("message");
+			root.setAttribute("operation", "sendRenewableUsrCert");
+			Element e1 = doc.createElement("user");
+            e1.appendChild(doc.createTextNode(serialUser));
+            root.appendChild(e1);
+			sendWithoutDigest(root);
+			
+			String document = recieve();
+			Document response = convStringToXml(document);
+			boolean digestOk = checkDigest(response);
+			if (digestOk == true){	
+				System.out.println("Sto controllando il cke..");
+				boolean check = checkSuccess(response);
+				if (check == true){
+					System.out.println("iva bene");
+
+					NodeList message = (response.getElementsByTagName("cert"));
+					return convNodeListToArrayList(message);
+				}else{
+					System.out.println("non va bene");
+
+					return null;
+				}
 			}else{
 				return null;
 			}
@@ -246,8 +320,13 @@ public class ClientCA{
 			Document response = convStringToXml(document);
 			boolean digestOk = checkDigest(response);
 			if (digestOk == true){			
-				NodeList message = (response.getElementsByTagName("cert"));
-				return convNodeListToArrayList(message);
+				boolean check = checkSuccess(response);
+				if (check == true){
+					NodeList message = (response.getElementsByTagName("cert"));
+					return convNodeListToArrayList(message);
+				}else{
+					return null;
+				}
 			}else{
 				return null;
 			}
@@ -259,6 +338,7 @@ public class ClientCA{
 	
 	protected boolean renewsCertificate(String certificateSerial, String newNotBefore, String serialPk, int l){
 		try{
+			System.out.println("entrato");
 			KeyPair chiavi = createKeyPair(l);
 			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
 			DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
@@ -272,34 +352,57 @@ public class ClientCA{
             e2.appendChild(doc.createTextNode(newNotBefore));
             Element e3 = doc.createElement("publicKey");
             e3.appendChild(doc.createTextNode(convPubKeyToBase64(chiavi.getPublic())));
+            Element e4 = doc.createElement("serialSign");
+            e4.appendChild(doc.createTextNode(serialPk));
             root.appendChild(e1);
             root.appendChild(e2);
             root.appendChild(e3);
+            root.appendChild(e4);
+			System.out.println("sono arrivato fi qui");
+
 			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		    stm = conn.createStatement();
+			System.out.println("sono arrivato fi qui2");
+
 			ResultSet rs = getPrivKeyToDB(serialPk);
+
+			System.out.println("mi sono fatto dare il result set");
+
 			String privKeyToDigest = rs.getString(1);
-			PrivateKey keyDigest = convStringToPrivKey(privKeyToDigest);
+			System.out.println("La chiave estretta è " + privKeyToDigest);
+			PrivateKey keyDigest = convBase64ToPrivKey(privKeyToDigest);
+			System.out.println("mi sono fatto dare la chiave");
+
 			conn.close();
+			System.out.println("Ho chiuso la connessione!!");
 			sendWithDigest(root, keyDigest);
 			
-			String messaggio = in.readLine();
-	        while(in.ready()){
-	        	messaggio = messaggio + "\n" + in.readLine();
-	        }
+			String messaggio = recieve();
+			
 	        
 			Document response = convStringToXml(messaggio);
 			boolean digestOk = checkDigest(response);
-			if (digestOk == true){			
-				String serial = (response.getElementsByTagName("serial").item(0)).getNodeValue();
-				String cert = (response.getElementsByTagName("cert").item(0)).getNodeValue();
-				conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-				stm = conn.createStatement();
-				deleteUsrCert(serial);
-				conn.close();
-			    stm = conn.createStatement();
-				insertUsrCert(serial, convPrivKeyToBase64(chiavi.getPrivate()), convPubKeyToBase64(chiavi.getPublic()), cert);
-				conn.close();
-				return true;
+			if (digestOk == true){
+				boolean check = checkSuccess(response);
+				if (check == true){
+					System.out.println("Entrato!!!!!");
+					String serial = (response.getElementsByTagName("serial").item(0)).getChildNodes().item(0).getNodeValue();
+					String cert = (response.getElementsByTagName("cert").item(0)).getChildNodes().item(0).getNodeValue();
+					System.out.println("Ho letto i dati" + serial + cert);
+					conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+					stm = conn.createStatement();
+					deleteUsrCert(serial);
+					conn.close();
+					System.out.println("Ci sono!!!!!!");
+					conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+				    stm = conn.createStatement();
+					insertUsrCert(serial, convPubKeyToBase64(chiavi.getPublic()), convPrivKeyToBase64(chiavi.getPrivate()), cert);
+
+					conn.close();
+					return true;
+				}else{
+					return false;
+				}
 			}else{
 				System.out.println("firma non valida");
 				return false;
@@ -329,9 +432,14 @@ public class ClientCA{
 			String document = recieve();
 			Document response = convStringToXml(document);
 			boolean digestOk = checkDigest(response);
-			if (digestOk == true){			
-				Node message = (response.getElementsByTagName("message").item(0));
-				return convOCSPToArrayList(response);
+			if (digestOk == true){	
+				boolean b = checkSuccess(response);
+				if (b == true){
+					Node message = (response.getElementsByTagName("message").item(0));
+					return convOCSPToArrayList(response);
+				}else{
+					return null;
+				}
 			}else{
 				return null;
 			}
@@ -359,7 +467,7 @@ public class ClientCA{
 	        na.appendChild(doc.createTextNode(notAfter));
 			root.appendChild(na);
 			Element sDN = doc.createElement("subjectDN");
-	        sDN.appendChild(doc.createTextNode(username));
+	        sDN.appendChild(doc.createTextNode("CN=" + username));
 			root.appendChild(sDN);
 			Element pk = doc.createElement("publicKey");
 	        pk.appendChild(doc.createTextNode(convPubKeyToBase64(kp.getPublic())));
@@ -378,14 +486,19 @@ public class ClientCA{
 			Document response = convStringToXml(document);
 			boolean digestOk = checkDigest(response);
 			System.out.println("La firma è " + digestOk);
-			if (digestOk == true){			
-				String serial = (response.getElementsByTagName("serial").item(0)).getChildNodes().item(0).getNodeValue();
-				String cert = (response.getElementsByTagName("cert").item(0)).getChildNodes().item(0).getNodeValue();
-				conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-			    stm = conn.createStatement();
-				insertUsrCert(serial, convPrivKeyToBase64(kp.getPrivate()), convPubKeyToBase64(kp.getPublic()), cert);
-				conn.close();
-				return true;
+			if (digestOk == true){	
+				boolean b = checkSuccess(response);
+				if (b == true){
+					String serial = (response.getElementsByTagName("serial").item(0)).getChildNodes().item(0).getNodeValue();
+					String cert = (response.getElementsByTagName("cert").item(0)).getChildNodes().item(0).getNodeValue();
+					conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+				    stm = conn.createStatement();
+					insertUsrCert(serial, convPubKeyToBase64(kp.getPublic()), convPrivKeyToBase64(kp.getPrivate()), cert);
+					conn.close();
+					return true;
+				}else{
+					return false;
+				}
 			}else{
 				System.out.println("firma non valida");
 				return false;
@@ -405,10 +518,7 @@ public class ClientCA{
 			Document doc = docBuilder.newDocument();
 			//create the root element and add it to the document
 			Element root = doc.createElement("message");
-			root.setAttribute("operation", "createNewCertificateSS");
-			Element nb = doc.createElement("notBefore");
-	        nb.appendChild(doc.createTextNode(notBefore));
-			root.appendChild(nb);
+			root.setAttribute("operation", "createNewCertificate");
 			Element na = doc.createElement("notAfter");
 	        na.appendChild(doc.createTextNode(notAfter));
 			root.appendChild(na);
@@ -424,21 +534,42 @@ public class ClientCA{
 			Element ou = doc.createElement("organizationUnit");
 	        ou.appendChild(doc.createTextNode(organizationUnit));
 			root.appendChild(ou);
+			Element e4 = doc.createElement("serialSign");
+            e4.appendChild(doc.createTextNode(pkserial));
+            root.appendChild(e4);
+            Element e5 = doc.createElement("subjectDN");
+            e5.appendChild(doc.createTextNode("CN=" + username));
+            root.appendChild(e5);
+			System.out.println("Tento la query");
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		    stm = conn.createStatement();
 			ResultSet rs = getPrivKeyToDB(pkserial);
-			rs.first();
-			PrivateKey privk = convStringToPrivKey(rs.getString(1));
+			
+			System.out.println("Ho fatto la query su /" + pkserial +"/");
+			rs.next();
+			PrivateKey privk = convBase64ToPrivKey(rs.getString(1));
 			sendWithDigest(root, privk);
-			String document = in.readLine();
+			conn.close();
+			String document = recieve();
 			Document response = convStringToXml(document);
 			boolean digestOk = checkDigest(response);
-			if (digestOk == true){			
-				String serial = (response.getElementsByTagName("serial").item(0)).getNodeValue();
-				String cert = (response.getElementsByTagName("cert").item(0)).getNodeValue();
-				insertUsrCert(serial, convPrivKeyToBase64(kp.getPrivate()), convPubKeyToBase64(kp.getPublic()), cert);
+			if (digestOk == true){	
+				boolean b = checkSuccess(response);
+				if (b == true){
+					String serial = (response.getElementsByTagName("serial").item(0)).getChildNodes().item(0).getNodeValue();
+					String cert = (response.getElementsByTagName("cert").item(0)).getChildNodes().item(0).getNodeValue();
+					conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+				    stm = conn.createStatement();
+					insertUsrCert(serial, convPubKeyToBase64(kp.getPublic()), convPrivKeyToBase64(kp.getPrivate()), cert);
+					conn.close();
+					return true;
+				}else{
+					return false;
+				}
 			}else{
 				System.out.println("firma non valida");
+				return false;
 			}
-			return true;
 		}catch(Exception e){
 			System.out.println(e.getMessage());
 			return false;
@@ -446,54 +577,96 @@ public class ClientCA{
 	}
 	
 	//Invia la richiesta di revoca di un certificato
-	protected void sendRevokeRequest(String serial, int reason, String pkSerial) throws ParserConfigurationException, IOException, SQLException, InvalidKeySpecException, NoSuchAlgorithmException{
-		DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
-		DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
-		Document doc = docBuilder.newDocument();
-		//create the root element and add it to the document
-		Element root = doc.createElement("message");
-		root.setAttribute("operation", "revokeCert");
-		Element sr = doc.createElement("serial");
-        sr.appendChild(doc.createTextNode(serial));
-		root.appendChild(sr);
-		Element mot = doc.createElement("reason");
-        mot.appendChild(doc.createTextNode(reason + ""));
-		root.appendChild(mot);
-		ResultSet rs = getPrivKeyToDB(pkSerial);
-		rs.first();
-		PrivateKey privk = convStringToPrivKey(rs.getString(1));
-		sendWithDigest(root, privk);
-		//Risposta
-		String document = in.readLine();	
+	protected boolean sendRevokeRequest(String serial, int reason, String pkSerial){
+		try{
+			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+			DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+			Document doc = docBuilder.newDocument();
+			//create the root element and add it to the document
+			Element root = doc.createElement("message");
+			root.setAttribute("operation", "revokeCert");
+			Element sr = doc.createElement("serial");
+		    sr.appendChild(doc.createTextNode(serial));
+			root.appendChild(sr);
+			Element ss = doc.createElement("serialSign");
+		    ss.appendChild(doc.createTextNode(pkSerial));
+		    root.appendChild(ss);
+			Element mot = doc.createElement("reason");
+		    mot.appendChild(doc.createTextNode(reason + ""));
+			root.appendChild(mot);
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		    stm = conn.createStatement();
+			ResultSet rs = getPrivKeyToDB(pkSerial);
+			rs.next();
+			PrivateKey privk = convBase64ToPrivKey(rs.getString(1));
+			conn.close();
+			sendWithDigest(root, privk);
+			//Risposta
+			String messaggio = recieve();
+			
+			Document response = convStringToXml(messaggio);
+			boolean digestOk = checkDigest(response);
+			if (digestOk == true){
+				boolean check = checkSuccess(response);
+				if (check == true){
+					return true;
+				}else{
+					return false;
+				}
+			}else{
+				System.out.println("firma non valida");
+				return false;
+			}	
+		}catch(Exception e){
+			System.out.println(e.getMessage());
+			return false;
+		}
 	}
 	
 	//Chiede la CRL
-	protected void sendCrlRequest(String serial, String pkserial) throws ParserConfigurationException, SQLException, InvalidKeySpecException, NoSuchAlgorithmException, IOException, SAXException, InvalidKeyException, SignatureException, TransformerException, CertificateException, NoSuchProviderException, CRLException{
-		DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
-		DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
-		Document doc = docBuilder.newDocument();
-		//create the root element and add it to the document
-		Element root = doc.createElement("message");
-		root.setAttribute("operation", "sendCrl");
-		ResultSet rs = getPrivKeyToDB(pkserial);
-		rs.first();
-		PrivateKey privk = convStringToPrivKey(rs.getString(1));
-		sendWithDigest(root, privk);
-		//Risposta
-		String document = in.readLine();	
-		Document response = convStringToXml(document);
-		boolean digestOk = checkDigest(response);
-		if (digestOk == true){
-			String crlString = response.getElementsByTagName("sendCRLResp").item(0).getChildNodes().item(0).getNodeValue();
-			X509CRL crl = convBase64ToCrl(crlString);		
-		}
+	protected X509CRL sendCrlRequest(){
+		try{
+			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+			DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+			Document doc = docBuilder.newDocument();
+			//create the root element and add it to the document
+			Element root = doc.createElement("message");
+			root.setAttribute("operation", "sendCrl");
+			//conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		    //stm = conn.createStatement();
+			//ResultSet rs = getPrivKeyToDB(pkserial);
+			//rs.next();
+			//PrivateKey privk = convBase64ToPrivKey(rs.getString(1));
+			//conn.close();
+			sendWithoutDigest(root);
+			//Risposta
+			String document = recieve();	
+			Document response = convStringToXml(document);
+			boolean digestOk = checkDigest(response);
+			if (digestOk == true){
+				boolean check = checkSuccess(response);
+				if (check == true){
+					String crlString = response.getElementsByTagName("crl").item(0).getChildNodes().item(0).getNodeValue();
+					System.out.println("Ho ricevuto la cRL " + crlString);
+					X509CRL crl = convBase64ToCrl(crlString);		
+					return crl;
+				}else{
+					return null;
+				}
+			}else{
+				return null;
+			}
+		}catch(Exception e){
+			System.out.println(e.getMessage());
+			return null;
+		}	
 	}
 			
-	public void closeConnection() throws IOException{
+	/**public void closeConnection() throws IOException{
 		in.close();
 		out.close();
 		clientConn.close();
-	}
+	}*/
 	
 	/**public void send (String s) throws IOException{
 		out.write("Client " + num + ": ");
@@ -513,10 +686,10 @@ public class ClientCA{
         //kpg.initialize(l, new SecureRandom( ));
         // genera la coppia
         KeyPair kp = kpg.generateKeyPair();
-        String kpu = convPubKeyToBase64(kp.getPublic());
-        PublicKey ppp = convBase64ToPubKey(kpu);
         String kpr = convPrivKeyToBase64(kp.getPrivate());
-        System.out.println(kpu + "\n" + kpr);
+        PrivateKey rrr = convBase64ToPrivKey(kpr);
+        String kpr2 = convPrivKeyToBase64(kp.getPrivate());
+        System.out.println("La chiave priva geerata è " + kpr2 + "\n" + kpr);
         return kp;
 	}
 			
@@ -620,6 +793,26 @@ public class ClientCA{
 		return day + "/" + month + "/" + year;
 	}
 	
+	//Converte una stringa Base64 in una chiave pubblica
+	public static PublicKey convBase64ToPubKey(String publicKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
+		byte[] publicKeyBytes = publicKey.getBytes();
+		byte[] conv = Base64.decode(publicKeyBytes);
+		X509EncodedKeySpec ks = new X509EncodedKeySpec(conv);
+        KeyFactory kf = KeyFactory.getInstance("RSA");
+        return kf.generatePublic(ks);
+	}
+	
+	//Converte una stringa Base64 in una chiave privata
+	public static PrivateKey convBase64ToPrivKey(String privateKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
+		byte[] privateKeyBytes = privateKey.getBytes();
+		byte[] conv = Base64.decode(privateKeyBytes);
+		PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(conv);
+	    KeyFactory kf = KeyFactory.getInstance("RSA");
+	    return kf.generatePrivate(ks); 
+	}
+	
+	/**
+	
 	//Converte una stringa in una chiave pubblica
 	protected static PublicKey convStringToPubKey(String publicKey) throws InvalidKeySpecException, NoSuchAlgorithmException{
 		byte[] publicKeyBytes = publicKey.getBytes();
@@ -636,6 +829,8 @@ public class ClientCA{
 		return kf.generatePrivate(ks);
 	}
 	
+	*/
+	/**
 	//Converte una stringa BASE64 in una chiave pubblica
 	protected static PublicKey convBase64ToPubKey(String publicKey) throws InvalidKeySpecException, NoSuchAlgorithmException{
 		byte[] publicKeyBytes =  Base64.decode(publicKey);
@@ -650,7 +845,7 @@ public class ClientCA{
 		PKCS8EncodedKeySpec ks = new PKCS8EncodedKeySpec(privateKeyBytes);
 		KeyFactory kf = KeyFactory.getInstance("RSA");
 		return kf.generatePrivate(ks);
-	}
+	}*/
 	
 	/*
 	//converte una chiave privata in una stringa
@@ -856,7 +1051,7 @@ public class ClientCA{
 	
 	//Restituisce la chiave privata di un cxertificato
 	protected ResultSet getPrivKeyToDB(String serial) throws SQLException{
-		return stm.executeQuery("SELECT privateKey FROM tblUsrCert WHERE serial = '" + serial + "';");
+		return stm.executeQuery("SELECT privateKey FROM tblUsrCert WHERE serialNumber = '" + serial + "';");
 	}
 	
 	//Inserisce un nuovo certificato nel DB
@@ -890,6 +1085,6 @@ public class ClientCA{
 	
 	//Elimina un certificato
 	protected void deleteUsrCert(String serial) throws SQLException{
-		stm.executeQuery("DELETE FROM tblUsrCert WHERE serialNumber = '" + serial + "';");
+		stm.executeUpdate("DELETE FROM tblUsrCert WHERE serialNumber = '" + serial + "';");
 	}
 }
