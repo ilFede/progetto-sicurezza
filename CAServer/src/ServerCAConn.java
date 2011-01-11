@@ -833,7 +833,7 @@ public class ServerCAConn extends Thread{
 		System.out.println("fatto3"); 
 		
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-		insertUsrCert(strCert, "goog", notAfter, newNotBefore, serialCert, subjectDN, "0");
+		insertUsrCert(strCert, "good", notAfter, newNotBefore, serialCert, subjectDN, "0");
 		conn.close();
 		/**
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));

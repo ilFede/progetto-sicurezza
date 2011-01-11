@@ -267,4 +267,71 @@ public class CertificateAuthority{
 		conn1.close();
 	}
 	
+	public String getUsrCert(){
+		try{
+			Connection conn1 = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		    Statement stm = conn1.createStatement();
+			ResultSet rs = stm.executeQuery("SELECT serialNumber, subjectDN, notAfter, notBefore, state, reason FROM tblUsrCert;");
+			String result = "";
+			while(rs.next()){
+				result = result + rs.getString(1) + "; ";
+				result = result + rs.getString(2) + "; ";
+				result = result + rs.getString(3) + "; ";
+				result = result + rs.getString(4) + "; ";
+				result = result + rs.getString(5) + "; ";
+				result = result + rs.getString(6) + "; ";
+				result = result + "\n";
+			}
+			stm.close();
+			conn1.close();
+			return result;
+		}catch(Exception e){
+			System.out.println(e.getMessage());
+			return "";
+		}
+	}
+	
+	public String getRenew(){
+		try{
+			Connection conn1 = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		    Statement stm = conn1.createStatement();
+			ResultSet rs = stm.executeQuery("SELECT serialNumber, dataOp, oldNotBefore, newNotBefore FROM tblRinnovi;");
+			String result = "";
+			while(rs.next()){
+				result = result + rs.getString(1) + "; ";
+				result = result + rs.getString(2) + ";";
+				result = result + rs.getString(3) + " -> ";
+				result = result + rs.getString(4) + ";";
+				result = result + "\n";
+			}
+			stm.close();
+			conn1.close();
+			return result;
+		}catch(Exception e){
+			System.out.println(e.getMessage());
+			return "";
+		}
+	}
+	
+	public String getRevoked(){
+		try{
+			Connection conn1 = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+		    Statement stm = conn1.createStatement();
+			ResultSet rs = stm.executeQuery("SELECT serialNumber, opDate, reason FROM tblRevokedCert;");
+			String result = "";
+			while(rs.next()){
+				result = result + rs.getString(1) + "; ";
+				result = result + rs.getString(2) + "; ";
+				result = result + rs.getString(3) + "; ";
+				result = result + "\n";
+			}
+			stm.close();
+			conn1.close();
+			return result;
+		}catch(Exception e){
+			System.out.println(e.getMessage());
+			return "";
+		}
+	}
+	
 }
