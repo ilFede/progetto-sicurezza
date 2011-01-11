@@ -1,14 +1,25 @@
+import java.io.ByteArrayInputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.net.Socket;
 import java.security.KeyFactory;
 import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
 import java.security.PublicKey;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509CRL;
+import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.X509EncodedKeySpec;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.GregorianCalendar;
+import java.util.StringTokenizer;
 
+import org.bouncycastle.asn1.x509.X509Extensions;
 import org.bouncycastle.util.encoders.Base64;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.Shell;
@@ -16,6 +27,8 @@ import org.eclipse.swt.widgets.TabFolder;
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.custom.CTabFolder;
 import org.eclipse.swt.widgets.Decorations;
+import org.eclipse.swt.widgets.DirectoryDialog;
+import org.eclipse.swt.widgets.FileDialog;
 import org.eclipse.swt.widgets.TabItem;
 import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.widgets.Label;
@@ -50,6 +63,14 @@ public class ClientCAGui {
 	private boolean selfSigned = true;
 	private boolean haveRenCert = true;
 	private boolean haveValidCert = true;
+	private boolean utentiOC = false;
+	private boolean haveCertOC = false;
+	private X509Certificate cert;
+	protected final String organizationOID = X509Extensions.IssuerAlternativeName.toString();
+	private boolean certSave = false;
+	private boolean haveCrl = false;
+	private Text txtCrl;
+	private X509CRL crl;
 
 	/**
 	 * Launch the application.
@@ -258,6 +279,209 @@ public class ClientCAGui {
 		});
 		button_6.setText("New Button");
 		button_6.setBounds(478, 62, 76, 24);
+		
+		TabItem tabItem_1 = new TabItem(tabFolder, SWT.NONE);
+		tabItem_1.setText("New Item");
+		
+		Composite composite_3 = new Composite(tabFolder, SWT.NONE);
+		tabItem_1.setControl(composite_3);
+		
+		final CCombo cmbUsrListOC = new CCombo(composite_3, SWT.BORDER);
+		cmbUsrListOC.setBounds(212, 23, 126, 29);
+		
+		final CCombo cmbCertListOC = new CCombo(composite_3, SWT.BORDER);
+		cmbCertListOC.setBounds(212, 58, 126, 29);
+		
+		Label lblSelezionaUtente = new Label(composite_3, SWT.NONE);
+		lblSelezionaUtente.setFont(SWTResourceManager.getFont("Ubuntu", 10, SWT.NORMAL));
+		lblSelezionaUtente.setBounds(30, 23, 131, 29);
+		lblSelezionaUtente.setText("Seleziona utente:");
+		
+		Label lblSelezionaCertificato_1 = new Label(composite_3, SWT.NONE);
+		lblSelezionaCertificato_1.setText("Seleziona certificato:");
+		lblSelezionaCertificato_1.setFont(SWTResourceManager.getFont("Ubuntu", 10, SWT.NORMAL));
+		
+		final Label lblErrOc = new Label(composite_3, SWT.NONE);
+		lblErrOc.setBounds(10, 216, 328, 14);
+		lblErrOc.setText("New Label");
+		lblSelezionaCertificato_1.setBounds(30, 58, 131, 29);
+		
+		Button button_7 = new Button(composite_3, SWT.NONE);
+		button_7.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				lblErrOc.setText("");
+				ArrayList<String> array = client.recieveUrsList();
+				utentiOC = false;
+				certSave = false;
+				cmbUsrListOC.removeAll();
+				if (array != null){
+					utentiOC = true;
+					for (int i = 0; i < array.size(); i++){
+						cmbUsrListOC.add(array.get(i));
+						utentiOC = true;
+					}
+				}
+			}
+		});
+		button_7.setBounds(384, 23, 76, 24);
+		button_7.setText("New Button");
+		
+		final Label lblCertOC = new Label(composite_3, SWT.NONE);
+		lblCertOC.setText("Seleziona certificato:");
+		lblCertOC.setFont(SWTResourceManager.getFont("Ubuntu", 10, SWT.NORMAL));
+		lblCertOC.setBounds(30, 93, 131, 29);
+		
+		Button button_8 = new Button(composite_3, SWT.NONE);
+		button_8.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				lblCertOC.setText("");
+				haveCertOC = false;
+				cmbCertListOC.removeAll();
+				if (utentiOC == true){
+					String user = cmbUsrListOC.getText();
+					ArrayList<String> array = client.recieveCertUsrList(user);
+					if (array != null){
+						haveCertOC = true;
+						for (int i = 0; i < array.size(); i++){
+							cmbCertListOC.add(array.get(i));
+						}
+					}else{
+						haveCertOC = false;
+						lblCertOC.setText("L'utente non ha certificati");
+					}
+				}
+			}
+		});
+		button_8.setText("New Button");
+		button_8.setBounds(384, 58, 76, 24);
+		
+		final Label lblSerialOC = new Label(composite_3, SWT.NONE);
+		lblSerialOC.setFont(SWTResourceManager.getFont("Ubuntu", 10, SWT.NORMAL));
+		lblSerialOC.setBounds(130, 133, 104, 14);
+		lblSerialOC.setText("New Label");
+		
+		final Label lblUserOC = new Label(composite_3, SWT.NONE);
+		lblUserOC.setText("New Label");
+		lblUserOC.setFont(SWTResourceManager.getFont("Ubuntu", 10, SWT.NORMAL));
+		lblUserOC.setBounds(335, 133, 104, 14);
+		
+		final Label lblOrgOC = new Label(composite_3, SWT.NONE);
+		lblOrgOC.setText("New Label");
+		lblOrgOC.setFont(SWTResourceManager.getFont("Ubuntu", 10, SWT.NORMAL));
+		lblOrgOC.setBounds(130, 153, 104, 14);
+		
+		final Label lblReasonOC = new Label(composite_3, SWT.NONE);
+		lblReasonOC.setText("New Label");
+		lblReasonOC.setFont(SWTResourceManager.getFont("Ubuntu", 10, SWT.NORMAL));
+		lblReasonOC.setBounds(335, 193, 104, 14);
+		
+		final Label lblDaOC = new Label(composite_3, SWT.NONE);
+		lblDaOC.setText("New Label");
+		lblDaOC.setFont(SWTResourceManager.getFont("Ubuntu", 10, SWT.NORMAL));
+		lblDaOC.setBounds(130, 173, 104, 14);
+		
+		final Label lblAOC = new Label(composite_3, SWT.NONE);
+		lblAOC.setText("New Label");
+		lblAOC.setFont(SWTResourceManager.getFont("Ubuntu", 10, SWT.NORMAL));
+		lblAOC.setBounds(335, 173, 104, 14);
+		
+		final Label lblStateOC = new Label(composite_3, SWT.NONE);
+		lblStateOC.setText("New Label");
+		lblStateOC.setFont(SWTResourceManager.getFont("Ubuntu", 10, SWT.NORMAL));
+		lblStateOC.setBounds(130, 193, 104, 14);
+		
+		final Label lblSignOC = new Label(composite_3, SWT.NONE);
+		lblSignOC.setText("New Label");
+		lblSignOC.setFont(SWTResourceManager.getFont("Ubuntu", 10, SWT.NORMAL));
+		lblSignOC.setBounds(335, 153, 104, 14);
+		
+		Button button_9 = new Button(composite_3, SWT.NONE);
+		button_9.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				if ((utentiOC == true)&&(haveCertOC == true)){
+					String serial = cmbCertListOC.getText();
+					ArrayList<String> array = client.recieveOcsp(serial);
+					if (array == null){
+						lblErrOc.setText("Nessun dato valido dalla CA");
+					}else{
+						try{
+							String certString = array.get(0);
+							String state = array.get(1);
+							String notAfter = array.get(2);
+							String notBefore = array.get(3);
+							String serialNumber = array.get(4);
+							String subjectDN = array.get(5);
+							String reason = array.get(6);
+							Date notAft = convStringToDate(notAfter);
+							Date notBfr = convStringToDate(notBefore);
+							Date now = convStringToDate(getNowStringDate());
+							
+							cert = convBase64ToX509(certString);
+							
+							if ((notBfr.compareTo(now) < 1)&&(state.equals("good"))){
+								lblStateOC.setText("Scaduto");
+							}else if (state.equals("revoked")){
+								lblStateOC.setText("Revocato");
+								if (reason.equals("0")){
+									lblReasonOC.setText("Chiave compromessa");
+									//imposta l'etichetta a chiave compromessa
+								}else{
+									lblReasonOC.setText("Motivo sconosciuto");
+									//imposta l'etichetta a motivo sconosciuto
+								}
+							}
+							lblSerialOC.setText(serialNumber);
+							lblUserOC.setText(subjectDN);
+							lblOrgOC.setText(new String(cert.getExtensionValue(organizationOID)));
+							lblDaOC.setText(notBefore);
+							lblAOC.setText(notAfter);
+							lblSignOC.setText(cert.getSigAlgName());
+							certSave = true;
+						}catch(Exception ex){
+							
+						}
+						
+						/**
+						array.add(cert);
+						array.add(state);
+						array.add(notAfter);
+						array.add(notBefore);
+						array.add(serialNumber);
+						array.add(subjectDN);
+						array.add(reason);*/
+						
+					}
+				}
+			}
+		});
+		button_9.setBounds(384, 98, 76, 24);
+		button_9.setText("New Button");
+		
+		Button button_10 = new Button(composite_3, SWT.NONE);
+		button_10.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				try{
+					if (certSave == true){
+						DirectoryDialog dialog = new DirectoryDialog(shell, SWT.SAVE);
+						String name = cert.getSerialNumber() + "";
+						String path = dialog.open() + "/" +  name + ".cer";
+						File file = new File(path);
+				        FileOutputStream fosP = new FileOutputStream(file);
+				        fosP.write(cert.getEncoded());
+				        fosP.close();
+					}
+				}catch(Exception ex){
+					System.out.println(ex.getMessage());
+					System.out.println("Impossibile salvare il certificato...");
+				}
+			}
+		});
+		button_10.setBounds(475, 163, 76, 24);
+		button_10.setText("New Button");
 		
 		TabItem tabItem = new TabItem(tabFolder, SWT.NONE);
 		tabItem.setText("New Item");
@@ -514,14 +738,57 @@ public class ClientCAGui {
 		lblUtente.setBounds(38, 42, 54, 14);
 		lblUtente.setText("Utente:");
 		
-		
-		
 		TabItem tbtmMostraCrl = new TabItem(tabFolder, SWT.NONE);
 		tbtmMostraCrl.setText("Mostra CRL");
 		
+		TabItem tabItem_2 = new TabItem(tabFolder, SWT.NONE);
+		tabItem_2.setText("New Item");
+		
+		Composite composite_4 = new Composite(tabFolder, SWT.NONE);
+		tabItem_2.setControl(composite_4);
+		
+		Button button_11 = new Button(composite_4, SWT.NONE);
+		button_11.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				crl = client.sendCrlRequest();
+				txtCrl.setText(crl.toString());
+				haveCrl = true;
+			}
+		});
+		button_11.setBounds(10, 10, 76, 24);
+		button_11.setText("New Button");
+		
+		txtCrl = new Text(composite_4, SWT.MULTI | SWT.WRAP | SWT.V_SCROLL | SWT.BORDER);
+		txtCrl.setBounds(10, 46, 631, 184);
+		
+		Button button_12 = new Button(composite_4, SWT.NONE);
+		button_12.addSelectionListener(new SelectionAdapter() {
+			@Override
+			public void widgetSelected(SelectionEvent e) {
+				try{
+					if (haveCrl == true){
+						DirectoryDialog dialog = new DirectoryDialog(shell, SWT.SAVE);
+						String name = crl.getThisUpdate() + "";
+						String path = dialog.open() + "/" + name + ".cer";
+						System.out.println(path);
+						File file = new File(path);
+						FileOutputStream fosP = new FileOutputStream(file);
+						fosP.write(crl.getEncoded());
+						fosP.close();
+					}
+				}catch(Exception ex){
+					System.out.println(ex.getMessage());
+					System.out.println("Non posso salvare il file...");
+				}
+			}
+		});
+		button_12.setBounds(177, 10, 76, 24);
+		button_12.setText("New Button");
+		
 		TabItem tbtmMostraCertificatoocsp = new TabItem(tabFolder, SWT.NONE);
 		tbtmMostraCertificatoocsp.setText("Mostra Certificato (OCSP)");
-
+		
 	}
 	//Converte una stringa BASE64 in una chiave pubblica
 	protected static PublicKey convBase64ToPubKey(String publicKey) throws InvalidKeySpecException, NoSuchAlgorithmException{
@@ -547,5 +814,23 @@ public class ClientCAGui {
 		String second = ("0" + gc.get(Calendar.SECOND));
 		second = second.substring(second.length() - 2, second.length());*/
 		return day + "/" + month + "/" + year;
+	}
+	
+	//Converte unsa Stringa in formato gg/mm/aaaa in util.Date
+	@SuppressWarnings("deprecation")
+	protected Date convStringToDate(String s){
+		StringTokenizer token = new StringTokenizer(s, "/");
+		int day = Integer.parseInt(token.nextToken());
+		int month = Integer.parseInt(token.nextToken()) - 1;
+		int year = Integer.parseInt(token.nextToken()) - 1900;
+		return new Date (year, month, day);
+	}
+	
+	//Converte una stringa base64 iu un certificato
+	protected X509Certificate convBase64ToX509(String base64Cert) throws CertificateException, NoSuchProviderException{
+		byte[] data = Base64.decode(base64Cert);
+        CertificateFactory fact = CertificateFactory.getInstance("X.509","BC");
+        X509Certificate cert = (X509Certificate)fact.generateCertificate(new ByteArrayInputStream(data));
+		return cert;
 	}
 }
