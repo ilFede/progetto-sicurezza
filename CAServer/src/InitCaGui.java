@@ -1,18 +1,11 @@
-import java.io.IOException;
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
-import java.sql.SQLException;
-import java.util.Properties;
-import java.util.StringTokenizer;
-
 import org.eclipse.swt.SWT;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
 import org.eclipse.swt.widgets.Button;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.FileDialog;
-import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
 
 
@@ -28,17 +21,17 @@ public class InitCaGui {
 	 */
 	public static void main(String[] args) {
 		try {
-			String dbPath = "/home/federico/Scienze Informatiche/Sicurezza/Progetto/Workspace/CAServer/DataBase/authority.db";
-			int port = 8888;
-			String dbClassName = "jdbc:sqlite:";
-			try {
-				CertificateAuthority ca = new CertificateAuthority(dbClassName, dbPath, port);
-			}catch(Exception e){
-				System.out.println(e.getMessage());
-			System.out.println("Errore nei dati");
-			}
-			//InitCaGui window = new InitCaGui();
-			//window.open();
+			//String dbPath = "/home/federico/Scienze Informatiche/Sicurezza/Progetto/Workspace/CAServer/DataBase/authority.db";
+			//int port = 8888;
+			//String dbClassName = "jdbc:sqlite:";
+			//try {
+				//CertificateAuthority ca = new CertificateAuthority(dbClassName, dbPath, port);
+			//}catch(Exception e){
+				//System.out.println(e.getMessage());
+			//System.out.println("Errore nei dati");
+			//}
+			InitCaGui window = new InitCaGui();
+			window.open();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -78,21 +71,10 @@ public class InitCaGui {
 					int port = Integer.parseInt(textPort.getText());
 					String dbClassName = "jdbc:sqlite:";
 					try {
-						CertificateAuthority ca = new CertificateAuthority(dbClassName, dbPath, port);
-					} catch (NoSuchAlgorithmException e1) {
-						// TODO Auto-generated catch block
-						e1.printStackTrace();
-					} catch (InvalidKeySpecException e1) {
-						// TODO Auto-generated catch block
-						e1.printStackTrace();
-					} catch (SQLException e1) {
-						// TODO Auto-generated catch block
-						e1.printStackTrace();
-					} catch (ClassNotFoundException e1) {
-						// TODO Auto-generated catch block
-						e1.printStackTrace();
-					} catch (IOException e1) {
-						// TODO Auto-generated catch block
+						shlInizializzazioneCa.close();
+						@SuppressWarnings("unused")
+						CaGui ca = new CaGui(dbClassName, dbPath, port);
+					} catch (Exception e1) {
 						e1.printStackTrace();
 					}
 				}catch(Exception e2){
@@ -115,7 +97,7 @@ public class InitCaGui {
 		lblErr.setBounds(28, 107, 241, 14);
 
 	}
-	
+	/**
 	private String normalizeUri(String s){
 		String result = "";
 		StringTokenizer token = new StringTokenizer(s, " ");
@@ -124,5 +106,5 @@ public class InitCaGui {
 		}
 		return result;
 		
-	}
+	}*/
 }

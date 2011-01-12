@@ -133,7 +133,7 @@ public class CertificateAuthority{
 		X509Certificate cert = certGen.generate(caPrivateKey, "BC");
 		String privK64 = convPrivKeyToBase64(caPrivateKey);
 		String pubK64 = convPubKeyToBase64(caPublicKey);
-		PrivateKey p1 = convBase64ToPrivKey(privK64);
+		//PrivateKey p1 = convBase64ToPrivKey(privK64);
 		System.out.println(privK64);
 		
 		insertCACert(1 + "", privK64, pubK64, convX509ToBase64(cert));

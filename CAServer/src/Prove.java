@@ -32,6 +32,7 @@ import org.w3c.dom.DOMImplementation;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 
+@SuppressWarnings("unused")
 public class Prove {
 	
 	public static void main(String args[]) throws NoSuchAlgorithmException, TransformerException, ParserConfigurationException, InvalidKeySpecException, ClassNotFoundException, SQLException, UnknownHostException, IOException{

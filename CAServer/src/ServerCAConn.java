@@ -1,13 +1,10 @@
 // Fare in modo che sia il gestore delle operazioni a gestire le eccezioni, mandando in caso negativo un messaggio di errore standared firmato
 
 import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
 import java.io.PrintStream;
-import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.math.BigInteger;
 import java.net.Socket;
@@ -40,7 +37,6 @@ import java.sql.Statement;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
-import java.util.Properties;
 import java.util.StringTokenizer;
 
 import javax.security.auth.x500.X500Principal;
@@ -54,7 +50,6 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
-import org.bouncycastle.asn1.x509.CRLReason;
 import org.bouncycastle.asn1.x509.X509Extensions;
 import org.bouncycastle.util.encoders.Base64;
 import org.bouncycastle.x509.X509V2CRLGenerator;
@@ -633,7 +628,7 @@ public class ServerCAConn extends Thread{
 			String signatureAlg = doc1.getElementsByTagName("signatureAlg").item(0).getChildNodes().item(0).getNodeValue();
 			String organizationUnit = doc1.getElementsByTagName("organizationUnit").item(0).getChildNodes().item(0).getNodeValue();
 			System.out.println("Provo a farmi dare un seriale");
-			int state = 0;
+			//int state = 0;
 			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 			int serial = getFreeSerial();
 			conn.close();
@@ -794,7 +789,7 @@ public class ServerCAConn extends Thread{
 	
 	protected void renewCert(String message, String serialCert, String newNotBefore, String newPublicKey, String signatureSerial) throws SQLException, InvalidKeyException, SignatureException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, TransformerException, SAXException, IOException, ParserConfigurationException, IllegalArgumentException, InvalidKeySpecException{
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-		boolean b = checkDigest(convStringToXml(message), signatureSerial);
+		//boolean b = checkDigest(convStringToXml(message), signatureSerial);
 		conn.close();
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
 		ResultSet rs = getUserCert(serialCert);
@@ -803,7 +798,7 @@ public class ServerCAConn extends Thread{
 		//cert, state, notAfter, notBefore, serialNumber, subjectDN
 		
 		X509V3CertificateGenerator certGen = new X509V3CertificateGenerator();
-		X500Principal dnName = new X500Principal("CN=Test CA Certificate");
+		//X500Principal dnName = new X500Principal("CN=Test CA Certificate");
 
 		certGen.setSerialNumber(vecchio.getSerialNumber());
 		certGen.setIssuerDN(vecchio.getIssuerX500Principal());
