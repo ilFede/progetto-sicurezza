@@ -1,27 +1,39 @@
-import java.io.*;
-import java.net.*;
-
-import org.bouncycastle.util.encoders.Base64;
-import org.bouncycastle.x509.X509V1CertificateGenerator;
-import org.bouncycastle.x509.X509V3CertificateGenerator;
-import org.w3c.dom.DOMImplementation;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.NamedNodeMap;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.xml.sax.SAXException;
-
+import java.io.BufferedReader;
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.io.PrintStream;
+import java.io.StringWriter;
+import java.net.Socket;
+import java.security.InvalidKeyException;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.security.Security;
+import java.security.Signature;
+import java.security.SignatureException;
+import java.security.cert.CRLException;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509CRL;
+import java.security.cert.X509Certificate;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.security.spec.X509EncodedKeySpec;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.math.BigInteger;
-import java.security.*;
+import java.util.ArrayList;
+import java.util.StringTokenizer;
 
-import javax.security.auth.x500.X500Principal;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -32,18 +44,14 @@ import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 
-import java.security.cert.CRLException;
-import java.security.cert.CertificateEncodingException;
-import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509CRL;
-import java.security.cert.X509Certificate;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
-import java.util.ArrayList;
-import java.util.Properties;
-import java.util.StringTokenizer;
+import org.bouncycastle.util.encoders.Base64;
+import org.w3c.dom.DOMImplementation;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NamedNodeMap;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 public class ClientCA{
 	protected static int num;
@@ -87,10 +95,9 @@ public class ClientCA{
 		}
 		id = num;
 		num+=1; 
-		window = new MessageWindows("Client " + id);
+		window = new MessageWindows("Messaggi" + username);
 		System.out.println("Ci sosdad");
 		window.open();
-		window.write("ciao");
 		//System.out.println("Il numero è: " + num);
 		//boolean b = sendRevokeRequest("1012", 1, "1012");
 		//System.out.println("Il risultato dell'operazione è: " + b);
@@ -119,7 +126,7 @@ public class ClientCA{
 	        while(in.ready()){
 	        	document = document + "\n" + in.readLine();
 	        }
-	        window.write("Messaggio rievuto:\n" + document + "\n-------------------------------");
+	        window.write("--------------- Messaggio rievuto: ---------------\n" + document + "-------------------------------\n");
 	        System.out.println(document);
 	        return document;
 		}catch (Exception e){
@@ -148,7 +155,7 @@ public class ClientCA{
 			PrivateKey key = privKey;
 			String digest = createDigest(xmlString, key);
 			String message = "<document sender=\""+ username +"\">\n" + convXMLToString(elem) + "<digest>\n" + digest + "\n</digest>\n</document>";
-	        window.write("Messaggio inviato:\n" + message + "\n-------------------------------");
+	        window.write("--------------- Messaggio inviato: ---------------\n" + message + "\n-------------------------------\n");
 	        System.out.println(message);
 			out.println(message);
 		}catch (Exception e){
@@ -159,9 +166,9 @@ public class ClientCA{
 	//Invia un messaggio senza firma
 	protected void sendWithoutDigest(Element elem){
 		try{
-			String xmlString = convXMLToString(elem);
+			//String xmlString = convXMLToString(elem);
 			String message = "<document sender=\""+ username +"\">\n" + convXMLToString(elem) + "</document>\n";
-	        window.write("Messaggio inviato:\n" + message + "\n-------------------------------");
+	        window.write("--------------- Messaggio inviato: ---------------\n" + message + "\n-------------------------------\n");
 	        System.out.println(message);
 			out.println(message);
 			//out.flush();
@@ -435,7 +442,7 @@ public class ClientCA{
 			if (digestOk == true){	
 				boolean b = checkSuccess(response);
 				if (b == true){
-					Node message = (response.getElementsByTagName("message").item(0));
+					//Node message = (response.getElementsByTagName("message").item(0));
 					return convOCSPToArrayList(response);
 				}else{
 					return null;
@@ -467,7 +474,7 @@ public class ClientCA{
 	        na.appendChild(doc.createTextNode(notAfter));
 			root.appendChild(na);
 			Element sDN = doc.createElement("subjectDN");
-	        sDN.appendChild(doc.createTextNode("CN=" + username));
+	        sDN.appendChild(doc.createTextNode(username));
 			root.appendChild(sDN);
 			Element pk = doc.createElement("publicKey");
 	        pk.appendChild(doc.createTextNode(convPubKeyToBase64(kp.getPublic())));
@@ -538,7 +545,8 @@ public class ClientCA{
             e4.appendChild(doc.createTextNode(pkserial));
             root.appendChild(e4);
             Element e5 = doc.createElement("subjectDN");
-            e5.appendChild(doc.createTextNode("CN=" + username));
+            e5.appendChild(doc.createTextNode(username));
+            //e5.appendChild(doc.createTextNode("CN=" + username));
             root.appendChild(e5);
 			System.out.println("Tento la query");
 			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
@@ -687,7 +695,7 @@ public class ClientCA{
         // genera la coppia
         KeyPair kp = kpg.generateKeyPair();
         String kpr = convPrivKeyToBase64(kp.getPrivate());
-        PrivateKey rrr = convBase64ToPrivKey(kpr);
+        //PrivateKey rrr = convBase64ToPrivKey(kpr);
         String kpr2 = convPrivKeyToBase64(kp.getPrivate());
         System.out.println("La chiave priva geerata è " + kpr2 + "\n" + kpr);
         return kp;
@@ -774,6 +782,7 @@ public class ClientCA{
 	
 	
 	//Converte unsa Stringa in formato gg/mm/aaaa in util.Date
+	@SuppressWarnings("deprecation")
 	protected Date convStringToDate(String s){
 		StringTokenizer token = new StringTokenizer(s, "/");
 		int day = Integer.parseInt(token.nextToken());
@@ -783,6 +792,7 @@ public class ClientCA{
 	}
 	
 	//Converte un Date in formato gg/mm/aaaa
+	@SuppressWarnings("deprecation")
 	protected String getStringDate(Date date){
 		String year = ("0" + date.getYear());
 		year = year.substring(year.length() - 4, year.length());

@@ -1,9 +1,6 @@
-import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.Shell;
-import org.eclipse.swt.widgets.Composite;
 import org.eclipse.swt.SWT;
+import org.eclipse.swt.widgets.Shell;
 import org.eclipse.swt.widgets.Text;
-import org.eclipse.swt.custom.StyledText;
 
 
 public class MessageWindows {
@@ -34,7 +31,7 @@ public class MessageWindows {
 	 */
 	
 	public void open() {
-		Display display = Display.getDefault();
+		//Display display = Display.getDefault();
 		createContents();
 		shlProva.open();
 		shlProva.layout();

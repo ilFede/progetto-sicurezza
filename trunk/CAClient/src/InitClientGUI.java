@@ -1,3 +1,11 @@
+import java.net.Socket;
+import java.security.KeyFactory;
+import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
+import java.security.spec.InvalidKeySpecException;
+import java.security.spec.X509EncodedKeySpec;
+
+import org.bouncycastle.util.encoders.Base64;
 import org.eclipse.swt.widgets.DirectoryDialog;
 import org.eclipse.swt.widgets.Display;
 import org.eclipse.swt.widgets.FileDialog;
@@ -25,9 +33,9 @@ public class InitClientGUI {
 	 */
 	public static void main(String[] args) {
 		try {
-			//InitClientGUI window = new InitClientGUI();
-			//window.open();
-			String dbClassName = "jdbc:sqlite:";
+			InitClientGUI window = new InitClientGUI();
+			window.open();
+			/**String dbClassName = "jdbc:sqlite:";
 			String dbPath = "/home/federico/Scienze Informatiche/Sicurezza/Progetto/Workspace/CAClient/DataBase/authority.db";
 			//String dbPath = dd.open() + "test.db";
 			String username = "federico";
@@ -36,7 +44,7 @@ public class InitClientGUI {
 			int port = 8888;
 			boolean newUsr = true;
 			InitClient client = new InitClient (dbClassName, dbPath, username, password, host, port, newUsr);
-			System.out.println(client.recievePubKey());
+			System.out.println(client.recievePubKey());*/
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -63,7 +71,7 @@ public class InitClientGUI {
 	protected void createContents() {
 		shell = new Shell();
 		shell.setSize(312, 238);
-		shell.setText("SWT Application");
+		shell.setText("Inizializzazione Client");
 		
 		txtUser = new Text(shell, SWT.BORDER);
 		txtUser.setBounds(142, 68, 122, 22);
@@ -100,15 +108,20 @@ public class InitClientGUI {
 				try{
 					FileDialog dd = new FileDialog(shell, SWT.OPEN);
 					String dbClassName = "jdbc:sqlite:";
-					String username = txtUser.getText();
+					String username = "CN=" + txtUser.getText();
 					String dbPath = dd.open();
 					String password = txtPass.getText();
 					String host = txtHost.getText();
 					int port = 8888;
 					boolean newUsr = false;
-					InitClient client = new InitClient (dbClassName, dbPath, username, password, host, port, newUsr);
+					Socket conn = new Socket(host, port);
+					InitClient client = new InitClient (dbClassName, dbPath, username, password, conn, newUsr);
 					boolean datiOk = client.chekData();
 					if (datiOk){
+						PublicKey caPk = convBase64ToPubKey("MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQzQax6keAVJSpitc9erRNIVtNWdlUnQ8Mm0Z0H4a+Cz2G4HDLvkYjmIhkKW0Li/a3ZnaN73tfGAa1wSFG/99kiwc4+c4mCttpP/Zwdq7ovX1KQX4bjGYO8cPZRBcocZoHDvq8xBS8yyENIJXE4VKHFLh8iMbXKnBBUZT82m4dZOMwIDAQAB");
+						shell.close();
+						@SuppressWarnings("unused")
+						ClientCAGui gui = new ClientCAGui(username, dbClassName, dbPath, conn, caPk);
 						//Apri un nuovo client
 					}else{
 						lblErr.setText("Password o dati connessione sbagliati");
@@ -128,16 +141,20 @@ public class InitClientGUI {
 				try{
 					DirectoryDialog dd = new DirectoryDialog(shell, SWT.SAVE);
 					String dbClassName = "jdbc:sqlite:";
-					String username = txtUser.getText();
-					String dbPath = dd.open() + username + ".db";
+					String username = "CN=" + txtUser.getText();
+					String dbPath = dd.open() + "/" + username + ".db";
 					String password = txtPass.getText();
 					String host = txtHost.getText();
 					int port = 8888;
 					boolean newUsr = true;
-					InitClient client = new InitClient (dbClassName, dbPath, username, password, host, port, newUsr);
+					Socket conn = new Socket(host, port);
+					InitClient client = new InitClient (dbClassName, dbPath, username, password, conn, newUsr);
 					boolean datiOk = client.chekData();
 					if (datiOk){
-						//Apri un nuovo client
+						PublicKey caPk = convBase64ToPubKey("MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQzQax6keAVJSpitc9erRNIVtNWdlUnQ8Mm0Z0H4a+Cz2G4HDLvkYjmIhkKW0Li/a3ZnaN73tfGAa1wSFG/99kiwc4+c4mCttpP/Zwdq7ovX1KQX4bjGYO8cPZRBcocZoHDvq8xBS8yyENIJXE4VKHFLh8iMbXKnBBUZT82m4dZOMwIDAQAB");
+						shell.close();
+						@SuppressWarnings("unused")
+						ClientCAGui gui = new ClientCAGui(username, dbClassName, dbPath, conn, caPk);
 					}else{
 						lblErr.setText("Devi cambiare nome o parametri connessione!");
 					}
@@ -153,5 +170,14 @@ public class InitClientGUI {
 		lblErr = new Label(shell, SWT.NONE);
 		lblErr.setBounds(10, 182, 190, 14);
 
+	}
+	
+	//Converte una stringa Base64 in una chiave pubblica
+	public static PublicKey convBase64ToPubKey(String publicKey) throws NoSuchAlgorithmException, InvalidKeySpecException{
+		byte[] publicKeyBytes = publicKey.getBytes();
+		byte[] conv = Base64.decode(publicKeyBytes);
+		X509EncodedKeySpec ks = new X509EncodedKeySpec(conv);
+        KeyFactory kf = KeyFactory.getInstance("RSA");
+        return kf.generatePublic(ks);
 	}
 }

@@ -1,26 +1,11 @@
-import org.eclipse.swt.widgets.Display;
-import org.eclipse.swt.widgets.Shell;
-import org.eclipse.swt.layout.FillLayout;
 import org.eclipse.swt.SWT;
-import org.eclipse.swt.widgets.Text;
-import org.eclipse.swt.layout.GridLayout;
-import org.eclipse.swt.widgets.Label;
-import org.eclipse.swt.layout.GridData;
-import org.eclipse.swt.widgets.Combo;
 import org.eclipse.swt.events.SelectionAdapter;
 import org.eclipse.swt.events.SelectionEvent;
-import org.eclipse.swt.widgets.FileDialog;
-import org.eclipse.swt.widgets.TabFolder;
-import org.eclipse.swt.widgets.TabItem;
+import org.eclipse.swt.layout.GridLayout;
 import org.eclipse.swt.widgets.Button;
-import org.eclipse.swt.widgets.DateTime;
-import org.eclipse.swt.custom.CTabFolder;
-import org.eclipse.swt.widgets.Composite;
-import org.eclipse.nebula.widgets.datechooser.DateChooser;
-import org.eclipse.nebula.widgets.gallery.Gallery;
-import org.eclipse.nebula.widgets.gallery.DefaultGalleryItemRenderer;
-import org.eclipse.nebula.widgets.gallery.DefaultGalleryGroupRenderer;
-import org.eclipse.swt.browser.Browser;
+import org.eclipse.swt.widgets.Display;
+import org.eclipse.swt.widgets.Label;
+import org.eclipse.swt.widgets.Shell;
 
 
 public class ProvaSWT {
@@ -107,13 +92,13 @@ public class ProvaSWT {
 	}
 		
 	private void creaFile(){
-		FileDialog dialog = new FileDialog(shlCAClient, SWT.SAVE);
-		String result = dialog.open();
+		//FileDialog dialog = new FileDialog(shlCAClient, SWT.SAVE);
+		//String result = dialog.open();
 	}
 	
 	private void caricaFile(){
-		FileDialog dialog = new FileDialog(shlCAClient, SWT.OPEN);
-		String result = dialog.open();
+		//FileDialog dialog = new FileDialog(shlCAClient, SWT.OPEN);
+		//String result = dialog.open();
 	}
 		
 		
