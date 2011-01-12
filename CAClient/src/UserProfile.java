@@ -1,4 +1,7 @@
-import java.io.*;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.PrintStream;
+import java.io.StringWriter;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -7,14 +10,14 @@ import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import org.w3c.dom.Node;
-import org.w3c.dom.Comment;
+
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
-import org.w3c.dom.Text;
 
 public class UserProfile {
+	@SuppressWarnings("unused")
 	private String commonName, organization, mail, organizationUnit, locality, state, country, path;
+	@SuppressWarnings("unused")
 	private final String fileName = "profile.xml";
 	
 	public UserProfile (String path, String fileName){
