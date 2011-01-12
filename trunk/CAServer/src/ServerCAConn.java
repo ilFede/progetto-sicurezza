@@ -208,7 +208,7 @@ public class ServerCAConn extends Thread{
 					System.out.println("Etrto");
 					String usr = doc.getElementsByTagName("user").item(0).getChildNodes().item(0).getNodeValue();
 					System.out.println("L'utente è: ");
-					sendUsrCert(message, usr);
+					sendCertUsrList(message, usr);
 					
 				}else if (opName.equals("sendOcsp")){
 					String serial = doc.getElementsByTagName("serial").item(0).getChildNodes().item(0).getNodeValue();
@@ -433,7 +433,7 @@ public class ServerCAConn extends Thread{
 			conn.close();
 		}	
 	}
-	
+	/**
 	//Invia la lista dei certificati di un utente
 	protected void sendUsrCert(String message, String user) throws SAXException, IOException, ParserConfigurationException, SQLException, TransformerException, InvalidKeyException, SignatureException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeySpecException{
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
@@ -478,7 +478,7 @@ public class ServerCAConn extends Thread{
 			sendFailure("sendHaveValidCertResp");
 			conn.close();
 		}	
-	}
+	}*/
 	//Invia i dettagli di un certificato da usare come OCSP
 	protected void sendOcsp(String message, String serialCert) throws SQLException, ParserConfigurationException, SAXException, IOException, TransformerException, InvalidKeyException, SignatureException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, InvalidKeySpecException{
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
@@ -789,76 +789,82 @@ public class ServerCAConn extends Thread{
 	
 	protected void renewCert(String message, String serialCert, String newNotBefore, String newPublicKey, String signatureSerial) throws SQLException, InvalidKeyException, SignatureException, CertificateException, NoSuchProviderException, NoSuchAlgorithmException, TransformerException, SAXException, IOException, ParserConfigurationException, IllegalArgumentException, InvalidKeySpecException{
 		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-		//boolean b = checkDigest(convStringToXml(message), signatureSerial);
+		boolean b = checkDigest(convStringToXml(message), signatureSerial);
 		conn.close();
-		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-		ResultSet rs = getUserCert(serialCert);
-		String cert = rs.getString(1);
-		X509Certificate vecchio = convBase64ToX509(cert);
-		//cert, state, notAfter, notBefore, serialNumber, subjectDN
-		
-		X509V3CertificateGenerator certGen = new X509V3CertificateGenerator();
-		//X500Principal dnName = new X500Principal("CN=Test CA Certificate");
-
-		certGen.setSerialNumber(vecchio.getSerialNumber());
-		certGen.setIssuerDN(vecchio.getIssuerX500Principal());
-		certGen.setNotBefore(vecchio.getNotBefore());
-		certGen.setNotAfter(convStringToDate(newNotBefore));
-		certGen.setSubjectDN(vecchio.getSubjectX500Principal());                       
-		certGen.setPublicKey(convBase64ToPubKey(newPublicKey));
-		certGen.setSignatureAlgorithm(vecchio.getSigAlgName());
-		certGen.addExtension(organizationOID, false, vecchio.getExtensionValue(organizationOID));
-		conn.close();
-		
-		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-		X509Certificate newCert = certGen.generate(getCaPrivKey(), "BC");
-		conn.close();
-		
-		System.out.println("fatto");
-		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-		deleteUsrCert(serialCert);
-		conn.close();
-		
-		System.out.println("fatto2");
-		
-		String subjectDN = vecchio.getSubjectDN().getName();
-		String notAfter = convDateToString(vecchio.getNotAfter());
-		String strCert = convX509ToBase64(newCert);
-		
-		System.out.println("fatto3"); 
-		
-		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-		insertUsrCert(strCert, "good", notAfter, newNotBefore, serialCert, subjectDN, "0");
-		conn.close();
-		/**
-		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-		insertUsrCert(strCert, "GOOD", notAfter, newNotBefore, serialCert, subjectDN, "0");
-		conn.close();
-		*/
-		String oldNotBefore = convDateToString(vecchio.getNotBefore());
-		
-		System.out.println("fatto4");
-		
-		conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-		insertRinnCert(serialCert, newNotBefore, oldNotBefore);
-		conn.close();
-		
-		DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
-        DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
-        Document doc2 = docBuilder.newDocument();
-        Element root = doc2.createElement("message");
-        root.setAttribute("operation", "renewCertResp");
-        root.setAttribute("success", "true");
-        Element certEl = doc2.createElement("serial");
-        certEl.appendChild(doc2.createTextNode(serialCert + ""));
-        root.appendChild(certEl);
-        Element stateEl = doc2.createElement("cert");
-        stateEl.appendChild(doc2.createTextNode(strCert));
-        root.appendChild(stateEl);
-        
-        conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
-        sendWithDigest(root);
-        conn.close();
+		if (b == true){
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+			ResultSet rs = getUserCert(serialCert);
+			String cert = rs.getString(1);
+			X509Certificate vecchio = convBase64ToX509(cert);
+			//cert, state, notAfter, notBefore, serialNumber, subjectDN
+			
+			X509V3CertificateGenerator certGen = new X509V3CertificateGenerator();
+			//X500Principal dnName = new X500Principal("CN=Test CA Certificate");
+	
+			certGen.setSerialNumber(vecchio.getSerialNumber());
+			certGen.setIssuerDN(vecchio.getIssuerX500Principal());
+			certGen.setNotBefore(vecchio.getNotBefore());
+			certGen.setNotAfter(convStringToDate(newNotBefore));
+			certGen.setSubjectDN(vecchio.getSubjectX500Principal());                       
+			certGen.setPublicKey(convBase64ToPubKey(newPublicKey));
+			certGen.setSignatureAlgorithm(vecchio.getSigAlgName());
+			certGen.addExtension(organizationOID, false, vecchio.getExtensionValue(organizationOID));
+			conn.close();
+			
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+			X509Certificate newCert = certGen.generate(getCaPrivKey(), "BC");
+			conn.close();
+			
+			System.out.println("fatto");
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+			deleteUsrCert(serialCert);
+			conn.close();
+			
+			System.out.println("fatto2");
+			
+			String subjectDN = vecchio.getSubjectDN().getName();
+			String notAfter = convDateToString(vecchio.getNotAfter());
+			String strCert = convX509ToBase64(newCert);
+			
+			System.out.println("fatto3"); 
+			
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+			insertUsrCert(strCert, "good", notAfter, newNotBefore, serialCert, subjectDN, "0");
+			conn.close();
+			/**
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+			insertUsrCert(strCert, "GOOD", notAfter, newNotBefore, serialCert, subjectDN, "0");
+			conn.close();
+			*/
+			String oldNotBefore = convDateToString(vecchio.getNotBefore());
+			
+			System.out.println("fatto4");
+			
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+			insertRinnCert(serialCert, newNotBefore, oldNotBefore);
+			conn.close();
+			
+			DocumentBuilderFactory dbfac = DocumentBuilderFactory.newInstance();
+	        DocumentBuilder docBuilder = dbfac.newDocumentBuilder();
+	        Document doc2 = docBuilder.newDocument();
+	        Element root = doc2.createElement("message");
+	        root.setAttribute("operation", "renewCertResp");
+	        root.setAttribute("success", "true");
+	        Element certEl = doc2.createElement("serial");
+	        certEl.appendChild(doc2.createTextNode(serialCert + ""));
+	        root.appendChild(certEl);
+	        Element stateEl = doc2.createElement("cert");
+	        stateEl.appendChild(doc2.createTextNode(strCert));
+	        root.appendChild(stateEl);
+	        
+	        conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+	        sendWithDigest(root);
+	        conn.close();
+		}else{
+			conn = (DriverManager.getConnection(this.dbClassName + this.dbPath));
+			sendFailure("revokedCertResp");
+			conn.close();
+		}
 		
 	}
 	
