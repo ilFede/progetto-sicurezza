@@ -1,27 +1,20 @@
-import java.security.NoSuchAlgorithmException;
-import java.security.spec.InvalidKeySpecException;
 import java.sql.Connection;
 import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.Calendar;
-import java.util.Date;
-import java.util.GregorianCalendar;
-import java.util.Properties;
 
 
 public class DBQueryCA {
 	
+	@SuppressWarnings("unused")
 	private Statement stm;
 	private Connection conn;
 	private String dbClassName;
 	private String dbPath;
-	private Properties dbAccess;
-	private int lastSerial; //primo seriale non usato, viene salvato in una cella del DB
+	//private Properties dbAccess;
+	//private int lastSerial; //primo seriale non usato, viene salvato in una cella del DB
 	//private final String GOOD = "good";
-	private final String REVOKED = "revoked";
+	//private final String REVOKED = "revoked";
 	//private final String EXPIRED = "expired";
 	
 	public DBQueryCA(String dbClassName, String dbPath) throws SQLException, ClassNotFoundException {

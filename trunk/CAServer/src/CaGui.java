@@ -23,7 +23,7 @@ public class CaGui {
 	 * @param args
 	 */
 	public static void main(String[] args) {
-		try {
+		/**try {
 			CaGui window = new CaGui();
 			window.open();
 		} catch (Exception e) {
@@ -37,19 +37,20 @@ public class CaGui {
 		}catch(Exception e){
 			System.out.println(e.getMessage());
 		System.out.println("Errore nei dati");
-		}
+		}*/
 	}
 
 	/**
 	 * Open the window.
 	 */
 	
-	public CaGui(){
+	public CaGui(String dbClassName, String dbPath, int port){
 		try{
-			String dbPath = "/home/federico/Scienze Informatiche/Sicurezza/Progetto/Workspace/CAServer/DataBase/authority.db";
-			int port = 8888;
-			String dbClassName = "jdbc:sqlite:";
+			//String dbPath = "/home/federico/Scienze Informatiche/Sicurezza/Progetto/Workspace/CAServer/DataBase/authority.db";
+			//int port = 8888;
+			//String dbClassName = "jdbc:sqlite:";
 		    ca = new CertificateAuthority(dbClassName, dbPath, port);
+			open();
 		}catch (Exception e){
 			System.out.println(e.getMessage());
 		}
@@ -72,7 +73,7 @@ public class CaGui {
 	protected void createContents() {
 		shell = new Shell();
 		shell.setSize(535, 300);
-		shell.setText("SWT Application");
+		shell.setText("Server CA");
 		
 		Composite composite = new Composite(shell, SWT.NONE);
 		composite.setBounds(0, 0, 519, 268);
