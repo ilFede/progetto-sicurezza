@@ -95,7 +95,7 @@ public class ClientCA{
 		}
 		id = num;
 		num+=1; 
-		window = new MessageWindows("Messaggi" + username);
+		window = new MessageWindows("Messaggi " + username);
 		System.out.println("Ci sosdad");
 		window.open();
 		//System.out.println("Il numero è: " + num);
@@ -126,7 +126,7 @@ public class ClientCA{
 	        while(in.ready()){
 	        	document = document + "\n" + in.readLine();
 	        }
-	        window.write("--------------- Messaggio rievuto: ---------------\n" + document + "-------------------------------\n");
+	        window.write("--------------- Messaggio rievuto: ---------------" + document + "\n-------------------------------\n\n");
 	        System.out.println(document);
 	        return document;
 		}catch (Exception e){
@@ -155,7 +155,7 @@ public class ClientCA{
 			PrivateKey key = privKey;
 			String digest = createDigest(xmlString, key);
 			String message = "<document sender=\""+ username +"\">\n" + convXMLToString(elem) + "<digest>\n" + digest + "\n</digest>\n</document>";
-	        window.write("--------------- Messaggio inviato: ---------------\n" + message + "\n-------------------------------\n");
+	        window.write("--------------- Messaggio inviato: ---------------\n" + message + "\n-------------------------------\n\n");
 	        System.out.println(message);
 			out.println(message);
 		}catch (Exception e){
@@ -354,7 +354,7 @@ public class ClientCA{
 			Element root = doc.createElement("message");
 			root.setAttribute("operation", "renewsCertificate");
 			Element e1 = doc.createElement("serial");
-            e1.appendChild(doc.createTextNode(serialPk));
+            e1.appendChild(doc.createTextNode(certificateSerial));
             Element e2 = doc.createElement("newNotBefore");
             e2.appendChild(doc.createTextNode(newNotBefore));
             Element e3 = doc.createElement("publicKey");
