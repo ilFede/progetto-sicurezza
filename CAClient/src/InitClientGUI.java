@@ -168,7 +168,7 @@ public class InitClientGUI {
 		btnCrea.setText("Crea...");
 		
 		lblErr = new Label(shell, SWT.NONE);
-		lblErr.setBounds(10, 182, 190, 14);
+		lblErr.setBounds(10, 182, 276, 14);
 
 	}
 	
