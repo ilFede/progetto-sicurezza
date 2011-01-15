@@ -356,6 +356,8 @@ public class ClientCAGui {
 				haveValidCert = false;
 				lblHaveCertRn.setText("");
 				lblHaveValCerRn.setText("");
+				cmbCertRn.removeAll();
+				cmbSignRn.removeAll();
 				ArrayList<String> array = client.recieveRenewableCertUsrList(username);
 				if ((array == null)||(array.size()==0)){
 					System.out.println("aray nul");
