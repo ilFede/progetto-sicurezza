@@ -55,6 +55,9 @@ public class CaGui {
 			System.out.println(e.getMessage());
 		}
 	}
+	/**
+	 * @wbp.parser.entryPoint
+	 */
 	public void open() {
 		Display display = Display.getDefault();
 		createContents();
