@@ -124,7 +124,7 @@ public class InitClientGUI {
 						ClientCAGui gui = new ClientCAGui(username, dbClassName, dbPath, conn, caPk);
 						//Apri un nuovo client
 					}else{
-						lblErr.setText("Password o dati connessione sbagliati");
+						lblErr.setText("Password o dati connessione errati");
 					}
 				}catch(Exception ex){
 					System.out.println(ex.getMessage());
